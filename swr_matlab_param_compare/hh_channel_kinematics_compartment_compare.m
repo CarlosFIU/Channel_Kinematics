@@ -25,6 +25,9 @@ plot_model_channels(pv, V);
 print_channel_summary(pc);
 print_channel_summary(pv);
 
+% Export every generated figure into a PowerPoint deck (one figure per slide).
+export_figures_to_powerpoint('channel_kinematics_compartment_compare.pptx');
+
 end
 
 function model = load_model_channel_data(json_path, model_name, sections, V)
@@ -142,6 +145,69 @@ for m = 1:numel(model.mechanisms)
 
     set(gcf, 'Position', [80 60 1400 820]);
 end
+end
+
+
+function export_figures_to_powerpoint(pptx_name)
+figs = findall(groot, 'Type', 'figure');
+if isempty(figs)
+    warning('No figures were found to export.');
+    return;
+end
+
+% Keep creation order instead of handle order.
+fig_nums = arrayfun(@(h) h.Number, figs);
+[~, order] = sort(fig_nums);
+figs = figs(order);
+
+out_dir = fullfile(pwd, 'exports_channel_kinematics');
+if ~exist(out_dir, 'dir')
+    mkdir(out_dir);
+end
+
+png_files = cell(1, numel(figs));
+for k = 1:numel(figs)
+    f = figs(k);
+    safe_name = regexprep(get(f, 'Name'), '[^A-Za-z0-9_\- ]', '_');
+    if isempty(strtrim(safe_name))
+        safe_name = sprintf('Figure_%02d', k);
+    end
+    png_files{k} = fullfile(out_dir, sprintf('%02d_%s.png', k, safe_name));
+    if exist('exportgraphics', 'file') == 2
+        exportgraphics(f, png_files{k}, 'Resolution', 180);
+    else
+        print(f, png_files{k}, '-dpng', '-r180');
+    end
+end
+
+if exist('mlreportgen.ppt.Presentation', 'class') ~= 8
+    warning(['MATLAB Report Generator is not available. ', ...
+        'Saved PNG files to %s instead.'], out_dir);
+    return;
+end
+
+import mlreportgen.ppt.*
+ppt = Presentation(fullfile(out_dir, pptx_name));
+open(ppt);
+
+for k = 1:numel(png_files)
+    slide = add(ppt, 'Title and Content');
+    title_txt = sprintf('Channel kinematics figure %d', k);
+    try
+        fig_name = get(figs(k), 'Name');
+        if ~isempty(fig_name)
+            title_txt = fig_name;
+        end
+    catch
+    end
+
+    replace(slide, 'Title', title_txt);
+    pic = Picture(png_files{k});
+    replace(slide, 'Content', pic);
+end
+
+close(ppt);
+fprintf('PowerPoint saved: %s\n', fullfile(out_dir, pptx_name));
 end
 
 function tf = has_channel(model, s, mech)
@@ -395,6 +461,7 @@ tau_h = max(80 .* ones(size(V)), hmin);
 end
 
 function [m_inf, tau_m, h_inf, tau_h] = cat_rates(V, celsius, q10, mmin, hmin, a0m, zetam, vhalfm, gmm, a0h, zetah, vhalfh, gmh)
+% Matches modfiles/cat.mod kinetics.
 qt = q10.^((celsius-25)./10);
 a = 0.2 .* (-V + 19.26) ./ (exp((-V + 19.26)./10.0) - 1.0);
 b = 0.009 .* exp(-V ./ 22.03);
@@ -402,12 +469,15 @@ m_inf = a ./ (a + b);
 alpmt = exp(0.0378 .* zetam .* (V - vhalfm));
 betmt = exp(0.0378 .* zetam .* gmm .* (V - vhalfm));
 tau_m = betmt ./ (qt .* a0m .* (1 + alpmt));
-tau_m = max(tau_m, mmin./qt);
-ah = exp(0.0378 .* zetah .* (V - vhalfh));
-bh = exp(0.0378 .* zetah .* gmh .* (V - vhalfh));
-h_inf = 1 ./ (1 + ah);
-tau_h = bh ./ (qt .* a0h .* (1 + ah));
-tau_h = max(tau_h, hmin./qt);
+tau_m = max(tau_m, mmin);
+
+a_h = 1.0e-6 .* exp(-V ./ 16.26);
+b_h = 1 ./ (exp((-V + 29.79)./10.0) + 1);
+h_inf = a_h ./ (a_h + b_h);
+alph_h = exp(0.0378 .* zetah .* (V - vhalfh));
+beth_h = exp(0.0378 .* zetah .* gmh .* (V - vhalfh));
+tau_h = beth_h ./ (a0h .* (1 + alph_h));
+tau_h = max(tau_h, hmin);
 end
 
 function [m_inf, tau_m] = kca_rates(celsius, cai, beta, cac, taumin)

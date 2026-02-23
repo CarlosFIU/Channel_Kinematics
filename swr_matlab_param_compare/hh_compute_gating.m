@@ -151,6 +151,138 @@ switch lower(hh.kind)
         g.tau_h_ms = reshape(g.tau_h_ms, size(Vin));
         g.tau_n_ms = reshape(g.tau_n_ms, size(Vin));
 
+
+
+    % =========================================================
+    % 4) Channel_Kinematics PC soma kinetics (naxn + kdrca1)
+    % =========================================================
+    case 'ck_pc'
+        Vin = V;
+        V = V(:);
+
+        if ~isfield(hh,'celsius') || isempty(hh.celsius)
+            hh.celsius = 34;
+        end
+        qt = 2.^((hh.celsius-24)./10); % naxn.mod q10
+
+        % ---- naxn.mod ----
+        tha = -30; qa = 7.2; Ra = 0.4; Rb = 0.124;
+        thi1 = -45; thi2 = -45; qd = 1.5; qg = 1.5;
+        thinf = -50; qinf = 4;
+        mmin = 0.02; hmin = 0.5;
+        sh = get_field_or_default(hh,'sh_nax',0);
+
+        a_m = trap0_fun(V, tha+sh, Ra, qa);
+        b_m = trap0_fun(-V, -tha-sh, Rb, qa);
+        denom_m = a_m + b_m;
+        g.m_inf = a_m ./ denom_m;
+        g.tau_m_ms = 1 ./ denom_m ./ qt;
+        g.tau_m_ms = max(g.tau_m_ms, mmin);
+
+        a_h = trap0_fun(V, thi1+sh, 0.03, qd);
+        b_h = trap0_fun(-V, -thi2-sh, 0.01, qg);
+        denom_h = a_h + b_h;
+        g.h_inf = 1 ./ (1 + exp((V - thinf - sh)./qinf));
+        g.tau_h_ms = 1 ./ denom_h ./ qt;
+        g.tau_h_ms = max(g.tau_h_ms, hmin);
+
+        % ---- kdrca1.mod (kdr) ----
+        a0n = 0.02; zetan = -3; gmn = 0.7; vhalfn = 13; nmin = 2;
+        qtn = 1.^((hh.celsius-24)./10); % q10=1 in kdrca1.mod
+
+        alpn = exp(1e-3 .* zetan .* (V - vhalfn) .* 9.648e4 ./ (8.315 .* (273.16 + hh.celsius)));
+        betn = exp(1e-3 .* zetan .* gmn .* (V - vhalfn) .* 9.648e4 ./ (8.315 .* (273.16 + hh.celsius)));
+        g.n_inf = 1 ./ (1 + alpn);
+        g.tau_n_ms = betn ./ (qtn .* a0n .* (1 + alpn));
+        g.tau_n_ms = max(g.tau_n_ms, nmin);
+
+        % channel opening probabilities and max conductances from JSON
+        g.p_open_Na = g.m_inf.^3 .* g.h_inf;
+        g.p_open_Kdr = g.n_inf;
+        g.gbar_Na = get_field_or_default(hh,'gbar_nax',nan);
+        g.gbar_Kdr = get_field_or_default(hh,'gbar_kdr',nan);
+
+        g.m_inf    = reshape(g.m_inf,    size(Vin));
+        g.h_inf    = reshape(g.h_inf,    size(Vin));
+        g.n_inf    = reshape(g.n_inf,    size(Vin));
+        g.tau_m_ms = reshape(g.tau_m_ms, size(Vin));
+        g.tau_h_ms = reshape(g.tau_h_ms, size(Vin));
+        g.tau_n_ms = reshape(g.tau_n_ms, size(Vin));
+        g.p_open_Na = reshape(g.p_open_Na, size(Vin));
+        g.p_open_Kdr = reshape(g.p_open_Kdr, size(Vin));
+
+    % =========================================================
+    % 5) Channel_Kinematics PVBC soma kinetics (na3n + kdrbca1 + kdb)
+    % =========================================================
+    case 'ck_pvbc'
+        Vin = V;
+        V = V(:);
+
+        if ~isfield(hh,'celsius') || isempty(hh.celsius)
+            hh.celsius = 34;
+        end
+        qt_na = 2.^((hh.celsius-24)./10); % na3n.mod q10
+
+        % ---- na3n.mod ----
+        tha = -30; qa = 7.2; Ra = 0.4; Rb = 0.124;
+        thi1 = -45; thi2 = -45; qd = 1.5; qg = 1.5;
+        thinf = -50; qinf = 4;
+        mmin = 0.02; hmin = 0.5;
+        sh = get_field_or_default(hh,'sh_na3',0);
+
+        a_m = trap0_fun(V, tha+sh, Ra, qa);
+        b_m = trap0_fun(-V, -tha-sh, Rb, qa);
+        denom_m = a_m + b_m;
+        g.m_inf = a_m ./ denom_m;
+        g.tau_m_ms = 1 ./ denom_m ./ qt_na;
+        g.tau_m_ms = max(g.tau_m_ms, mmin);
+
+        a_h = trap0_fun(V, thi1+sh, 0.03, qd);
+        b_h = trap0_fun(-V, -thi2-sh, 0.01, qg);
+        denom_h = a_h + b_h;
+        g.h_inf = 1 ./ (1 + exp((V - thinf - sh)./qinf));
+        g.tau_h_ms = 1 ./ denom_h ./ qt_na;
+        g.tau_h_ms = max(g.tau_h_ms, hmin);
+
+        % slow inactivation s (na3n.mod)
+        vhalfs = -60; zetas = 12; gms = 0.2; a0s = 0.0003; smin = 10;
+        vvh = -58; vvs = 2; ar = 1; % default from na3n.mod (no slow inact reduction)
+        alpv = 1 ./ (1 + exp((V - vvh - sh)./vvs));
+        alps = exp(1e-3 .* zetas .* (V - vhalfs - sh) .* 9.648e4 ./ (8.315 .* (273.16 + hh.celsius)));
+        bets = exp(1e-3 .* zetas .* gms .* (V - vhalfs - sh) .* 9.648e4 ./ (8.315 .* (273.16 + hh.celsius)));
+        g.s_inf = alpv + ar .* (1 - alpv);
+        g.tau_s_ms = bets ./ (a0s .* (1 + alps));
+        g.tau_s_ms = max(g.tau_s_ms, smin);
+
+        % ---- kdrbca1.mod ----
+        sh_kdrb = get_field_or_default(hh,'sh_kdrb',0);
+        [g.n_inf, g.tau_n_ms] = kd_family_rates(V, hh.celsius, 13, -3, 0.7, 0.02, 2, sh_kdrb);
+
+        % ---- kdb.mod ----
+        sh_kdb = get_field_or_default(hh,'sh_kdb',0);
+        [g.n_kdb_inf, g.tau_n_kdb_ms] = kd_family_rates(V, hh.celsius, -33, 3, 0.7, 0.005, 2, sh_kdb);
+
+        g.p_open_Na = g.m_inf.^3 .* g.h_inf .* g.s_inf;
+        g.p_open_Kdrb = g.n_inf;
+        g.p_open_Kdb = g.n_kdb_inf;
+        g.gbar_Na = get_field_or_default(hh,'gbar_na3',nan);
+        g.gbar_Kdrb = get_field_or_default(hh,'gbar_kdrb',nan);
+        g.gbar_Kdb = get_field_or_default(hh,'gbar_kdb',nan);
+
+        g.m_inf    = reshape(g.m_inf,    size(Vin));
+        g.h_inf    = reshape(g.h_inf,    size(Vin));
+        g.n_inf    = reshape(g.n_inf,    size(Vin));
+        g.s_inf    = reshape(g.s_inf,    size(Vin));
+        g.n_kdb_inf = reshape(g.n_kdb_inf, size(Vin));
+        g.tau_m_ms = reshape(g.tau_m_ms, size(Vin));
+        g.tau_h_ms = reshape(g.tau_h_ms, size(Vin));
+        g.tau_n_ms = reshape(g.tau_n_ms, size(Vin));
+        g.tau_s_ms = reshape(g.tau_s_ms, size(Vin));
+        g.tau_n_kdb_ms = reshape(g.tau_n_kdb_ms, size(Vin));
+        g.p_open_Na = reshape(g.p_open_Na, size(Vin));
+        g.p_open_Kdrb = reshape(g.p_open_Kdrb, size(Vin));
+        g.p_open_Kdb = reshape(g.p_open_Kdb, size(Vin));
+
     otherwise
         error('hh_compute_gating: unknown hh.kind "%s".', hh.kind);
 end
@@ -201,4 +333,33 @@ small = abs(x) < 1e-6;
 % limit as (v-V0)->0: (v-V0)/(exp((v-V0)/B)-1) -> B
 % so fun3 -> A*B
 y(small) = A .* B .* (1 - x(small)./2);  % 1st-order series correction
+end
+
+
+function val = get_field_or_default(s, field_name, default_val)
+if isfield(s, field_name)
+    val = s.(field_name);
+else
+    val = default_val;
+end
+end
+
+function y = trap0_fun(v, th, a, q)
+x = v - th;
+y = a .* x ./ (1 - exp(-x./q));
+small = abs(x) <= 1e-6;
+y(small) = a .* q;
+end
+
+function [ninf, taun] = kd_family_rates(V, celsius, vhalfn, zetan, gmn, a0n, nmin, sh)
+if nargin < 8
+    sh = 0;
+end
+q10 = 1;
+qt = q10.^((celsius-24)./10);
+alpn = exp(1e-3 .* zetan .* (V - vhalfn - sh) .* 9.648e4 ./ (8.315 .* (273.16 + celsius)));
+betn = exp(1e-3 .* zetan .* gmn .* (V - vhalfn - sh) .* 9.648e4 ./ (8.315 .* (273.16 + celsius)));
+ninf = 1 ./ (1 + alpn);
+taun = betn ./ (qt .* a0n .* (1 + alpn));
+taun = max(taun, nmin./qt);
 end

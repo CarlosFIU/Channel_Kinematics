@@ -1,24 +1,29 @@
-function hh = hh_channel_kinematics_pc_params(json_path)
+function hh = hh_channel_kinematics_pc_params(json_path, section_name)
 % Load Channel_Kinematics PC parameters from SONATA dynamics JSON.
-% Uses soma conductances and mod-file kinetics implemented in hh_compute_gating()
+% Uses conductances for the requested compartment section and
+% mod-file kinetics implemented in hh_compute_gating().
 % kind='ck_pc' corresponding to naxn.mod + kdrca1.mod.
 
 if nargin < 1 || isempty(json_path)
     json_path = fullfile('..','PC_dynamics_params_sonata.json');
 end
+if nargin < 2 || isempty(section_name)
+    section_name = 'soma';
+end
 
 raw = jsondecode(fileread(json_path));
 
 hh.kind = 'ck_pc';
-hh.name = 'Channel Kinematics PC (soma)';
+hh.name = sprintf('Channel Kinematics PC (%s)', section_name);
+hh.section = section_name;
 
 hh.celsius = raw.conditions(1).celsius;
 rev = raw.conditions(1).erev(1);
 hh.ena = rev.ena;
 hh.ek = rev.ek;
 
-hh.gbar_nax = find_param(raw.genome, 'soma', 'gbar_nax');
-hh.gbar_kdr = find_param(raw.genome, 'soma', 'gkdrbar_kdr');
+hh.gbar_nax = find_param(raw.genome, section_name, 'gbar_nax');
+hh.gbar_kdr = find_param(raw.genome, section_name, 'gkdrbar_kdr');
 
 % default shifts from mod files
 hh.sh_nax = 0;

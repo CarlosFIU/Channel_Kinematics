@@ -17,3 +17,8 @@ How to extend to your SWR model papers
     * NEURON: .mod files (ion channel kinetics), .hoc templates (conductances), parameter JSONs
     * Brian/Matlab: code defines alpha/beta or m_inf/tau explicitly
   Once you have those, implement the gating functions in MATLAB and run the same plots.
+
+3) hh_channel_kinematics_pc_params.m + hh_channel_kinematics_pvbc_params.m
+   - Load PC/PVBC soma conductances from repository SONATA JSON parameter files.
+   - Used by swr_param_compare.m to compare gate tau and channel opening probabilities
+     using the repository mod-file equations (naxn/kdrca1 for PC; na3n/kdrbca1/kdb for PVBC).

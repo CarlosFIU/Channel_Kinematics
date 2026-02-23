@@ -121,143 +121,111 @@ legend('Location','northeastoutside'); grid on;
 hold off;
 
 %% -----------------------------
-% 4) HH gating comparison scaffold (UPDATED: Squid vs Canakci Pyr vs Canakci PV)
+% 4) HH/channel dynamics comparison for THIS repository (PC + PVBC)
 % ------------------------------
-% Changes:
-%  - Compare 3 models:
-%       (1) Squid HH
-%       (2) Canakci/Fink CA1 pyramidal (ca1ina + ca1ikdr)  -> hh.kind='canakci_fink'
-%       (3) Canakci/Fink PV/basket (nafbwb + kdrbwb)       -> hh.kind='canakci_pv'
-%  - Plot steady-states (m_inf, h_inf, n_inf) in one figure
-%  - Plot time constants for Na (tau_m, tau_h) and K (tau_n) in a separate figure
-%  - Optional plots for Canakci pyramidal slow Na inactivation (i_inf and tau_i)
-%  - PV m is instantaneous in Nafbwb -> tau_m is NaN (skip in tau_m panel)
+% Source of truth used below:
+%  - Conductance values: PC_dynamics_params_sonata.json / PVBC_dynamics_params_sonata.json
+%  - Kinetic equations: modfiles/naxn.mod, kdrca1.mod, na3n.mod, kdrbca1.mod, kdb.mod
+%
+% This section adds both:
+%   (a) gate steady-states + time constants (tau)
+%   (b) channel opening probabilities (P_open)
 
 V = linspace(-100, 50, 600);
 
-% ----------------------------
-% Model 1: Squid HH
-% ----------------------------
-hh1 = hh_squid_params();                 % ensure hh1.kind is 'squid1952' or 'alphabeta'
-if ~isfield(hh1,'name'); hh1.name = 'Squid HH (1952)'; end
-g1  = hh_compute_gating(V, hh1);
+hh_pc = hh_channel_kinematics_pc_params();
+hh_pv = hh_channel_kinematics_pvbc_params();
 
-% ----------------------------
-% Model 2: Canakci/Fink CA1 pyramidal
-% ----------------------------
-% Your file:
-%   function hh = hh_canakci_params()
-%       hh.kind = 'canakci_fink';
-%       hh.name = 'CA1 (Canakci/Fink)';
-%       hh.vi = -60; hh.ki = 0.8;
-%   end
-hh2 = hh_canakci_pyr_params();               % pyramidal
-if ~isfield(hh2,'name'); hh2.name = 'Canakci/Fink CA1 pyramidal'; end
-g2  = hh_compute_gating(V, hh2);
+g_pc = hh_compute_gating(V, hh_pc);
+g_pv = hh_compute_gating(V, hh_pv);
 
-% ----------------------------
-% Model 3: Canakci/Fink PV basket
-% ----------------------------
-% Requires you created:
-%   function hh = hh_canakci_pv_params(celsius)
-%       hh.kind='canakci_pv'; hh.celsius=celsius; hh.name=...
-%   end
-hh3 = hh_canakci_pv_params(34);          % PV/basket @ 34C
-if ~isfield(hh3,'name'); hh3.name = 'Canakci/Fink PV basket'; end
-g3  = hh_compute_gating(V, hh3);
-
-% ----------------------------
-% Sanity checks (optional)
-% ----------------------------
-fprintf('Squid      m_inf range: [%g, %g]\n', min(g1.m_inf), max(g1.m_inf));
-fprintf('CanakciPYR m_inf range: [%g, %g]\n', min(g2.m_inf), max(g2.m_inf));
-fprintf('CanakciPV  m_inf range: [%g, %g]\n', min(g3.m_inf), max(g3.m_inf));
-
-fprintf('Squid      h_inf range: [%g, %g]\n', min(g1.h_inf), max(g1.h_inf));
-fprintf('CanakciPYR h_inf range: [%g, %g]\n', min(g2.h_inf), max(g2.h_inf));
-fprintf('CanakciPV  h_inf range: [%g, %g]\n', min(g3.h_inf), max(g3.h_inf));
-
-fprintf('Squid      n_inf range: [%g, %g]\n', min(g1.n_inf), max(g1.n_inf));
-fprintf('CanakciPYR n_inf range: [%g, %g]\n', min(g2.n_inf), max(g2.n_inf));
-fprintf('CanakciPV  n_inf range: [%g, %g]\n', min(g3.n_inf), max(g3.n_inf));
+fprintf('PC   m_inf range:   [%g, %g]\n', min(g_pc.m_inf), max(g_pc.m_inf));
+fprintf('PC   h_inf range:   [%g, %g]\n', min(g_pc.h_inf), max(g_pc.h_inf));
+fprintf('PC   n_inf range:   [%g, %g]\n', min(g_pc.n_inf), max(g_pc.n_inf));
+fprintf('PVBC m_inf range:   [%g, %g]\n', min(g_pv.m_inf), max(g_pv.m_inf));
+fprintf('PVBC h_inf range:   [%g, %g]\n', min(g_pv.h_inf), max(g_pv.h_inf));
+fprintf('PVBC n_inf (kdrb):  [%g, %g]\n', min(g_pv.n_inf), max(g_pv.n_inf));
+fprintf('PVBC n_inf (kdb):   [%g, %g]\n', min(g_pv.n_kdb_inf), max(g_pv.n_kdb_inf));
 
 % ============================================================
-% A) Steady-state curves
+% A) Gate steady-state curves
 % ============================================================
-figure('Name','HH gating steady-states: Squid vs Canakci Pyr vs Canakci PV','Color','w');
+figure('Name','PC vs PVBC gate steady-states','Color','w');
 
-subplot(1,3,1);
-plot(V, g1.m_inf, 'LineWidth', 1.5); hold on;
-plot(V, g2.m_inf, '--', 'LineWidth', 1.5);
-plot(V, g3.m_inf, ':', 'LineWidth', 1.8);
-xlabel('V (mV)'); ylabel('m_\infty'); title('Na activation'); grid on;
-legend({hh1.name, hh2.name, hh3.name}, 'Location','best');
+subplot(2,3,1);
+plot(V, g_pc.m_inf, 'LineWidth', 1.5); hold on;
+plot(V, g_pv.m_inf, '--', 'LineWidth', 1.5);
+xlabel('V (mV)'); ylabel('m_\infty'); title('Na activation m_\infty'); grid on;
+legend({hh_pc.name, hh_pv.name}, 'Location','best');
 
-subplot(1,3,2);
-plot(V, g1.h_inf, 'LineWidth', 1.5); hold on;
-plot(V, g2.h_inf, '--', 'LineWidth', 1.5);
-plot(V, g3.h_inf, ':', 'LineWidth', 1.8);
-xlabel('V (mV)'); ylabel('h_\infty'); title('Na inactivation'); grid on;
-legend({hh1.name, hh2.name, hh3.name}, 'Location','best');
+subplot(2,3,2);
+plot(V, g_pc.h_inf, 'LineWidth', 1.5); hold on;
+plot(V, g_pv.h_inf, '--', 'LineWidth', 1.5);
+xlabel('V (mV)'); ylabel('h_\infty'); title('Na inactivation h_\infty'); grid on;
+legend({hh_pc.name, hh_pv.name}, 'Location','best');
 
-subplot(1,3,3);
-plot(V, g1.n_inf, 'LineWidth', 1.5); hold on;
-plot(V, g2.n_inf, '--', 'LineWidth', 1.5);
-plot(V, g3.n_inf, ':', 'LineWidth', 1.8);
-xlabel('V (mV)'); ylabel('n_\infty'); title('K activation (KDR)'); grid on;
-legend({hh1.name, hh2.name, hh3.name}, 'Location','best');
+subplot(2,3,3);
+plot(V, g_pc.n_inf, 'LineWidth', 1.5); hold on;
+plot(V, g_pv.n_inf, '--', 'LineWidth', 1.5);
+plot(V, g_pv.n_kdb_inf, ':', 'LineWidth', 1.8);
+xlabel('V (mV)'); ylabel('n_\infty'); title('K activation'); grid on;
+legend({'PC KDR','PVBC KDRb','PVBC KDB'}, 'Location','best');
 
-set(gcf,'Position',[100 100 1200 350]);
-
-% ============================================================
-% B) Time constants (Na + K)
-% ============================================================
-figure('Name','HH gating time constants: Squid vs Canakci Pyr vs Canakci PV','Color','w');
-
-% ---- tau_m: PV m is instantaneous -> tau_m is NaN -> skip PV in this panel
-subplot(1,3,1);
-plot(V, g1.tau_m_ms, 'LineWidth', 1.5); hold on;
-plot(V, g2.tau_m_ms, '--', 'LineWidth', 1.5);
+subplot(2,3,4);
+plot(V, g_pc.tau_m_ms, 'LineWidth', 1.5); hold on;
+plot(V, g_pv.tau_m_ms, '--', 'LineWidth', 1.5);
 xlabel('V (mV)'); ylabel('\tau_m (ms)'); title('Na \tau_m'); grid on;
-legend({hh1.name, hh2.name}, 'Location','best');
+legend({hh_pc.name, hh_pv.name}, 'Location','best');
 
-% ---- tau_h: compare all three (PV has h state)
+subplot(2,3,5);
+plot(V, g_pc.tau_h_ms, 'LineWidth', 1.5); hold on;
+plot(V, g_pv.tau_h_ms, '--', 'LineWidth', 1.5);
+plot(V, g_pv.tau_s_ms, ':', 'LineWidth', 1.8);
+xlabel('V (mV)'); ylabel('tau (ms)'); title('Na \tau_h (and PVBC \tau_s)'); grid on;
+legend({'PC \tau_h','PVBC \tau_h','PVBC \tau_s'}, 'Location','best');
+
+subplot(2,3,6);
+plot(V, g_pc.tau_n_ms, 'LineWidth', 1.5); hold on;
+plot(V, g_pv.tau_n_ms, '--', 'LineWidth', 1.5);
+plot(V, g_pv.tau_n_kdb_ms, ':', 'LineWidth', 1.8);
+xlabel('V (mV)'); ylabel('tau (ms)'); title('K \tau_n'); grid on;
+legend({'PC KDR \tau_n','PVBC KDRb \tau_n','PVBC KDB \tau_n'}, 'Location','best');
+
+set(gcf,'Position',[100 80 1300 650]);
+
+% ============================================================
+% B) Channel opening probabilities P_open(V)
+% ============================================================
+figure('Name','PC vs PVBC channel opening probabilities','Color','w');
+
+subplot(1,3,1);
+plot(V, g_pc.p_open_Na, 'LineWidth', 1.5); hold on;
+plot(V, g_pv.p_open_Na, '--', 'LineWidth', 1.5);
+xlabel('V (mV)'); ylabel('P_{open}'); title('Na P_{open}'); grid on;
+legend({'PC: m^3h','PVBC: m^3hs'}, 'Location','best');
+
 subplot(1,3,2);
-plot(V, g1.tau_h_ms, 'LineWidth', 1.5); hold on;
-plot(V, g2.tau_h_ms, '--', 'LineWidth', 1.5);
-plot(V, g3.tau_h_ms, ':', 'LineWidth', 1.8);
-xlabel('V (mV)'); ylabel('\tau_h (ms)'); title('Na \tau_h'); grid on;
-legend({hh1.name, hh2.name, hh3.name}, 'Location','best');
+plot(V, g_pc.p_open_Kdr, 'LineWidth', 1.5); hold on;
+plot(V, g_pv.p_open_Kdrb, '--', 'LineWidth', 1.5);
+xlabel('V (mV)'); ylabel('P_{open}'); title('KDR/KDRb P_{open}'); grid on;
+legend({'PC KDR (n)','PVBC KDRb (n)'}, 'Location','best');
 
-% ---- tau_n: compare all three
 subplot(1,3,3);
-plot(V, g1.tau_n_ms, 'LineWidth', 1.5); hold on;
-plot(V, g2.tau_n_ms, '--', 'LineWidth', 1.5);
-plot(V, g3.tau_n_ms, ':', 'LineWidth', 1.8);
-xlabel('V (mV)'); ylabel('\tau_n (ms)'); title('KDR \tau_n'); grid on;
-legend({hh1.name, hh2.name, hh3.name}, 'Location','best');
+plot(V, g_pv.p_open_Kdb, 'LineWidth', 1.5);
+xlabel('V (mV)'); ylabel('P_{open}'); title('PVBC KDB P_{open}'); grid on;
+legend({'PVBC KDB (n)'}, 'Location','best');
 
-set(gcf,'Position',[100 520 1200 350]);
+set(gcf,'Position',[120 180 1200 330]);
 
 % ============================================================
-% C) Optional: Canakci PYRAMIDAL slow Na inactivation i-gate
+% C) Print JSON conductance values used by the P_open curves
 % ============================================================
-if isfield(g2,'i_inf')
-    figure('Name','Canakci/Fink PYR: slow Na inactivation i-gate','Color','w');
-
-    subplot(1,2,1);
-    plot(V, g2.i_inf, 'LineWidth', 1.5); grid on;
-    xlabel('V (mV)'); ylabel('i_\infty'); title(['Slow Na inactivation i_\infty: ' hh2.name]);
-
-    subplot(1,2,2);
-    if isfield(g2,'tau_i_ms')
-        plot(V, g2.tau_i_ms, 'LineWidth', 1.5); grid on;
-        xlabel('V (mV)'); ylabel('\tau_i (ms)'); title('Slow Na inactivation \tau_i');
-        % set(gca,'YScale','log'); % optional
-    else
-        text(0.1,0.5,'tau_i_ms not found in g2','Units','normalized'); axis off;
-    end
-end
+fprintf('\n--- Soma conductances from SONATA dynamics JSON ---\n');
+fprintf('PC   gbar_nax      = %.8g S/cm^2\n', hh_pc.gbar_nax);
+fprintf('PC   gkdrbar_kdr   = %.8g S/cm^2\n', hh_pc.gbar_kdr);
+fprintf('PVBC gbar_na3      = %.8g S/cm^2\n', hh_pv.gbar_na3);
+fprintf('PVBC gkdrbar_kdrb  = %.8g S/cm^2\n', hh_pv.gbar_kdrb);
+fprintf('PVBC gkdbar_kdb    = %.8g S/cm^2\n', hh_pv.gbar_kdb);
 
 % ============================================================
 % D) Synaptic parameter table printout (unchanged)

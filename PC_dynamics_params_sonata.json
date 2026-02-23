@@ -1,0 +1,265 @@
+{
+  "passive": [
+    {
+      "ra": 103.47954175887017,
+      "cm": [
+        {
+          "section": "soma",
+          "cm": 1.0
+        },
+        {
+          "section": "axon",
+          "cm": 1.0
+        },
+        {
+          "section": "dend",
+          "cm": 1.0
+        },
+        {
+          "section": "apic",
+          "cm": 1.0
+        }
+      ],
+      "e_pas": -70.0
+    }
+  ],
+  "fitting": [
+    {
+      "junction_potential": -14.0,
+      "sweeps": [
+        35
+      ]
+    }
+  ],
+  "conditions": [
+    {
+      "celsius": 34.0,
+      "erev": [
+        {
+          "ena": 50.0,
+          "section": "soma",
+          "ek": -90.0
+        }
+      ],
+      "v_init": -70.0
+    }
+  ],
+  "genome": [
+    {
+      "section": "apic",
+      "name": "gbar_nax",
+      "value": 0.023759857054841602,
+      "mechanism": "nax"
+    },
+    {
+      "section": "apic",
+      "name": "Ra",
+      "value": 103.47954175887017,
+      "mechanism": ""
+    },
+    {
+      "section": "apic",
+      "name": "g_pas",
+      "value": 2.6523268119524358e-05,
+      "mechanism": "pas"
+    },
+    {
+      "section": "apic",
+      "name": "gkdrbar_kdr",
+      "value": 0.006130307964491085,
+      "mechanism": "kdr"
+    },
+    {
+      "section": "apic",
+      "name": "gcalbar_cal",
+      "value": 9.483425203065263e-06,
+      "mechanism": "cal"
+    },
+    {
+      "section": "apic",
+      "name": "gcanbar_can",
+      "value": 1.3249981136105916e-06,
+      "mechanism": "can"
+    },
+    {
+      "section": "apic",
+      "name": "gcatbar_cat",
+      "value": 1.0879088063976872e-06,
+      "mechanism": "cat"
+    },
+    {
+      "section": "apic",
+      "name": "gbar_kca",
+      "value": 0.00010083993369443302,
+      "mechanism": "kca"
+    },
+    {
+      "section": "apic",
+      "name": "gbar_cagk",
+      "value": 0.00011380973325602473,
+      "mechanism": "cagk"
+    },
+    {
+      "section": "axon",
+      "name": "gbar_nax",
+      "value": 0.1001229973891996,
+      "mechanism": "nax"
+    },
+    {
+      "section": "axon",
+      "name": "gkdrbar_kdr",
+      "value": 0.03154147475394812,
+      "mechanism": "kdr"
+    },
+    {
+      "section": "axon",
+      "name": "gbar_kmb",
+      "value": 0.00944152416873871,
+      "mechanism": "kmb"
+    },
+    {
+      "section": "axon",
+      "name": "gkabar_kap",
+      "value": 0.0361868885373495,
+      "mechanism": "kap"
+    },
+    {
+      "section": "axon",
+      "name": "Ra",
+      "value": 78.47402712080807,
+      "mechanism": ""
+    },
+    {
+      "section": "axon",
+      "name": "g_pas",
+      "value": 0.00019580269411909894,
+      "mechanism": "pas"
+    },
+    {
+      "section": "axon",
+      "name": "e_pas",
+      "value": -77.4446882824385,
+      "mechanism": "pas"
+    },
+    {
+      "section": "dend",
+      "name": "gkdrbar_kdr",
+      "value": 0.006130307964491085,
+      "mechanism": "kdr"
+    },
+    {
+      "section": "dend",
+      "name": "gcalbar_cal",
+      "value": 9.483425203065263e-06,
+      "mechanism": "cal"
+    },
+    {
+      "section": "dend",
+      "name": "gcanbar_can",
+      "value": 1.3249981136105916e-06,
+      "mechanism": "can"
+    },
+    {
+      "section": "dend",
+      "name": "gcatbar_cat",
+      "value": 1.0879088063976872e-06,
+      "mechanism": "cat"
+    },
+    {
+      "section": "dend",
+      "name": "gbar_kca",
+      "value": 0.00010083993369443302,
+      "mechanism": "kca"
+    },
+    {
+      "section": "dend",
+      "name": "gbar_cagk",
+      "value": 0.00011380973325602473,
+      "mechanism": "cagk"
+    },
+    {
+      "section": "dend",
+      "name": "gbar_nax",
+      "value": 0.01986685600091475,
+      "mechanism": "nax"
+    },
+    {
+      "section": "dend",
+      "name": "Ra",
+      "value": 105.20518944515042,
+      "mechanism": ""
+    },
+    {
+      "section": "dend",
+      "name": "g_pas",
+      "value": 5.6695398997390234e-05,
+      "mechanism": "pas"
+    },
+    {
+      "section": "soma",
+      "name": "gkdrbar_kdr",
+      "value": 0.006130307964491085,
+      "mechanism": "kdr"
+    },
+    {
+      "section": "soma",
+      "name": "gcalbar_cal",
+      "value": 9.483425203065263e-06,
+      "mechanism": "cal"
+    },
+    {
+      "section": "soma",
+      "name": "gcanbar_can",
+      "value": 1.3249981136105916e-06,
+      "mechanism": "can"
+    },
+    {
+      "section": "soma",
+      "name": "gcatbar_cat",
+      "value": 1.0879088063976872e-06,
+      "mechanism": "cat"
+    },
+    {
+      "section": "soma",
+      "name": "gbar_kca",
+      "value": 0.00010083993369443302,
+      "mechanism": "kca"
+    },
+    {
+      "section": "soma",
+      "name": "gbar_cagk",
+      "value": 0.00011380973325602473,
+      "mechanism": "cagk"
+    },
+    {
+      "section": "soma",
+      "name": "gkabar_kap",
+      "value": 0.07517720181209742,
+      "mechanism": "kap"
+    },
+    {
+      "section": "soma",
+      "name": "gbar_nax",
+      "value": 0.06403244199524308,
+      "mechanism": "nax"
+    },
+    {
+      "section": "soma",
+      "name": "gbar_kmb",
+      "value": 0.007197220999866372,
+      "mechanism": "kmb"
+    },
+    {
+      "section": "soma",
+      "name": "Ra",
+      "value": 368.1806012316754,
+      "mechanism": ""
+    },
+    {
+      "section": "soma",
+      "name": "g_pas",
+      "value": 2.511391707517926e-05,
+      "mechanism": "pas"
+    }
+  ]
+}

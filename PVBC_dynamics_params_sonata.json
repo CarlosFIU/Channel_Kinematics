@@ -1,0 +1,307 @@
+{
+  "passive": [
+    {
+      "ra": 103.47954175887017,
+      "cm": [
+        {
+          "section": "soma",
+          "cm": 1.0
+        },
+        {
+          "section": "axon",
+          "cm": 1.0
+        },
+        {
+          "section": "dend",
+          "cm": 1.0
+        },
+        {
+          "section": "apic",
+          "cm": 1.0
+        }
+      ],
+      "e_pas": -70.0
+    }
+  ],
+  "fitting": [
+    {
+      "junction_potential": -14.0,
+      "sweeps": [
+        35
+      ]
+    }
+  ],
+  "conditions": [
+    {
+      "celsius": 34.0,
+      "erev": [
+        {
+          "section": "soma",
+          "ena": 50.0,
+          "ek": -90.0
+        }
+      ],
+      "v_init": -70.0
+    }
+  ],
+  "genome": [
+    {
+      "section": "apic",
+      "name": "gkdrbar_kdrb",
+      "value": 0.045468308534377916,
+      "mechanism": "kdrb"
+    },
+    {
+      "section": "apic",
+      "name": "gkabar_kad",
+      "value": 0.005776347917510543,
+      "mechanism": "kad"
+    },
+    {
+      "section": "apic",
+      "name": "ghdbar_hd",
+      "value": 2.3095907457997284e-05,
+      "mechanism": "hd"
+    },
+    {
+      "section": "apic",
+      "name": "gcalbar_cal",
+      "value": 1.3516947425388211e-05,
+      "mechanism": "cal"
+    },
+    {
+      "section": "apic",
+      "name": "gcanbar_can",
+      "value": 1.294896152875423e-05,
+      "mechanism": "can"
+    },
+    {
+      "section": "apic",
+      "name": "gcatbar_cat",
+      "value": 1.0487060253500682e-05,
+      "mechanism": "cat"
+    },
+    {
+      "section": "apic",
+      "name": "gbar_kca",
+      "value": 9.584351932375942e-06,
+      "mechanism": "kca"
+    },
+    {
+      "section": "apic",
+      "name": "gbar_cagk",
+      "value": 4.78376253218416e-05,
+      "mechanism": "cagk"
+    },
+    {
+      "section": "apic",
+      "name": "Ra",
+      "value": 86.26958333227297,
+      "mechanism": ""
+    },
+    {
+      "section": "apic",
+      "name": "g_pas",
+      "value": 3.5087420849635937e-06,
+      "mechanism": "pas"
+    },
+    {
+      "section": "apic",
+      "name": "e_pas",
+      "value": -70.1332351904988,
+      "mechanism": "pas"
+    },
+    {
+      "section": "axon",
+      "name": "gbar_na3",
+      "value": 0.041581723492571894,
+      "mechanism": "na3"
+    },
+    {
+      "section": "axon",
+      "name": "gkdrbar_kdrb",
+      "value": 0.040442672077738044,
+      "mechanism": "kdrb"
+    },
+    {
+      "section": "axon",
+      "name": "gkabar_kap",
+      "value": 0.03636357092103544,
+      "mechanism": "kap"
+    },
+    {
+      "section": "axon",
+      "name": "gbar_kmb",
+      "value": 0.004965281224573079,
+      "mechanism": "kmb"
+    },
+    {
+      "section": "axon",
+      "name": "Ra",
+      "value": 98.60232972732128,
+      "mechanism": ""
+    },
+    {
+      "section": "axon",
+      "name": "g_pas",
+      "value": 3.8350266832559205e-05,
+      "mechanism": "pas"
+    },
+    {
+      "section": "axon",
+      "name": "e_pas",
+      "value": -76.18736033363972,
+      "mechanism": "pas"
+    },
+    {
+      "section": "dend",
+      "name": "gkdrbar_kdrb",
+      "value": 0.045468308534377916,
+      "mechanism": "kdrb"
+    },
+    {
+      "section": "dend",
+      "name": "gkabar_kad",
+      "value": 0.005776347917510543,
+      "mechanism": "kad"
+    },
+    {
+      "section": "dend",
+      "name": "ghdbar_hd",
+      "value": 2.3095907457997284e-05,
+      "mechanism": "hd"
+    },
+    {
+      "section": "dend",
+      "name": "gcalbar_cal",
+      "value": 1.3516947425388211e-05,
+      "mechanism": "cal"
+    },
+    {
+      "section": "dend",
+      "name": "gcanbar_can",
+      "value": 1.294896152875423e-05,
+      "mechanism": "can"
+    },
+    {
+      "section": "dend",
+      "name": "gcatbar_cat",
+      "value": 1.0487060253500682e-05,
+      "mechanism": "cat"
+    },
+    {
+      "section": "dend",
+      "name": "gbar_kca",
+      "value": 9.584351932375942e-06,
+      "mechanism": "kca"
+    },
+    {
+      "section": "dend",
+      "name": "gbar_cagk",
+      "value": 4.78376253218416e-05,
+      "mechanism": "cagk"
+    },
+    {
+      "section": "dend",
+      "name": "Ra",
+      "value": 86.26958333227297,
+      "mechanism": ""
+    },
+    {
+      "section": "dend",
+      "name": "g_pas",
+      "value": 3.5087420849635937e-06,
+      "mechanism": "pas"
+    },
+    {
+      "section": "dend",
+      "name": "e_pas",
+      "value": -70.1332351904988,
+      "mechanism": "pas"
+    },
+    {
+      "section": "soma",
+      "name": "gbar_na3",
+      "value": 0.05688953800683959,
+      "mechanism": "na3"
+    },
+    {
+      "section": "soma",
+      "name": "gkdrbar_kdrb",
+      "value": 0.04661419618525469,
+      "mechanism": "kdrb"
+    },
+    {
+      "section": "soma",
+      "name": "gkabar_kap",
+      "value": 0.012851888391835752,
+      "mechanism": "kap"
+    },
+    {
+      "section": "soma",
+      "name": "gkdbar_kdb",
+      "value": 6.919522399023964e-05,
+      "mechanism": "kdb"
+    },
+    {
+      "section": "soma",
+      "name": "gbar_kmb",
+      "value": 0.007099273866667842,
+      "mechanism": "kmb"
+    },
+    {
+      "section": "soma",
+      "name": "ghdbar_hd",
+      "value": 0.0004693975748358768,
+      "mechanism": "hd"
+    },
+    {
+      "section": "soma",
+      "name": "gcalbar_cal",
+      "value": 1.6762830677929118e-05,
+      "mechanism": "cal"
+    },
+    {
+      "section": "soma",
+      "name": "gcanbar_can",
+      "value": 2.8914764337951697e-05,
+      "mechanism": "can"
+    },
+    {
+      "section": "soma",
+      "name": "gcatbar_cat",
+      "value": 1.1941808553077386e-05,
+      "mechanism": "cat"
+    },
+    {
+      "section": "soma",
+      "name": "gbar_kca",
+      "value": 8.061973848078263e-06,
+      "mechanism": "kca"
+    },
+    {
+      "section": "soma",
+      "name": "gbar_cagk",
+      "value": 5.771861240926283e-05,
+      "mechanism": "cagk"
+    },
+    {
+      "section": "soma",
+      "name": "Ra",
+      "value": 115.48334846909937,
+      "mechanism": ""
+    },
+    {
+      "section": "soma",
+      "name": "g_pas",
+      "value": 0.00010543365823401373,
+      "mechanism": "pas"
+    },
+    {
+      "section": "soma",
+      "name": "e_pas",
+      "value": -88.78368954926339,
+      "mechanism": "pas"
+    }
+  ]
+}

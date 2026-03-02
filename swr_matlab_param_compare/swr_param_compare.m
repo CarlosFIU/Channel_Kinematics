@@ -236,11 +236,44 @@ for k = 1:numel(models)
     fprintf('%s\n', m.name);
     fprintf('  EXC: rise=%.3g ms, decay=%.3g ms\n', m.exc.tau_rise_ms, m.exc.tau_decay_ms);
     fprintf('  INH: rise=%.3g ms, decay=%.3g ms\n', m.inh.tau_rise_ms, m.inh.tau_decay_ms);
-    if isfield(m,'tau_gsyn_ms')
+    if isfield(m,'tau_gsyn_ms') && ~isempty(m.tau_gsyn_ms) && ~isnan(m.tau_gsyn_ms)
         fprintf('  g_syn decay tau (both): %.3g ms\n', m.tau_gsyn_ms);
     end
-    if isfield(m.exc,'gmax_nS')
+    if isfield(m.exc,'gmax_nS') && ~isempty(m.exc.gmax_nS) && ~isnan(m.exc.gmax_nS)
         fprintf('  gmax exc: %.3g nS, gmax inh: %.3g nS\n', m.exc.gmax_nS, m.inh.gmax_nS);
     end
     fprintf('  Notes: %s\n\n', m.notes);
 end
+
+%% -----------------------------
+% 5) Paper-level channel/synapse tables (five-paper list from review doc)
+% ------------------------------
+[paper_tbl, channel_tbl, synapse_tbl] = swr_build_paper_tables();
+
+out_tbl_dir = fullfile(pwd, 'exports_model_tables');
+if ~exist(out_tbl_dir, 'dir')
+    mkdir(out_tbl_dir);
+end
+
+writetable(paper_tbl,   fullfile(out_tbl_dir, 'paper_index.csv'));
+writetable(channel_tbl, fullfile(out_tbl_dir, 'channel_kinematics_table.csv'));
+writetable(synapse_tbl, fullfile(out_tbl_dir, 'synapse_connection_table.csv'));
+
+fprintf('\n--- Exported paper-level tables ---\n');
+fprintf('Paper index:      %s\n', fullfile(out_tbl_dir, 'paper_index.csv'));
+fprintf('Channel table:    %s\n', fullfile(out_tbl_dir, 'channel_kinematics_table.csv'));
+fprintf('Synapse table:    %s\n', fullfile(out_tbl_dir, 'synapse_connection_table.csv'));
+
+disp(' ');
+disp('Preview: channel table (first 10 rows)');
+disp(channel_tbl(1:min(10,height(channel_tbl)), :));
+
+disp(' ');
+disp('Preview: synapse table (first 10 rows)');
+disp(synapse_tbl(1:min(10,height(synapse_tbl)), :));
+
+
+%% -----------------------------
+% 7) Targeted PC/PVBC kinematics with explicit Bezaire CA1 equations
+% ------------------------------
+swr_plot_pc_pvbc_targeted_kinematics(V);

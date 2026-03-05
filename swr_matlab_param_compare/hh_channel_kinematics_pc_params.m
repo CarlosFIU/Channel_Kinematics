@@ -5,7 +5,20 @@ function hh = hh_channel_kinematics_pc_params(json_path, section_name)
 % kind='ck_pc' corresponding to naxn.mod + kdrca1.mod.
 
 if nargin < 1 || isempty(json_path)
-    json_path = fullfile('..','PC_dynamics_params_sonata.json');
+    this_dir = fileparts(mfilename('fullpath'));
+    repo_root = fileparts(this_dir);
+    json_path = fullfile(repo_root, 'PC_dynamics_params_sonata.json');
+elseif ~isfile(json_path)
+    this_dir = fileparts(mfilename('fullpath'));
+    repo_root = fileparts(this_dir);
+    alt_path = fullfile(repo_root, json_path);
+    if isfile(alt_path)
+        json_path = alt_path;
+    end
+end
+
+if ~isfile(json_path)
+    error('Could not open PC dynamics JSON: %s', json_path);
 end
 if nargin < 2 || isempty(section_name)
     section_name = 'soma';

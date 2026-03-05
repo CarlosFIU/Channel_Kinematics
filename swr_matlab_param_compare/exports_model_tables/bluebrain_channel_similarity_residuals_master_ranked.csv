@@ -1,0 +1,22 @@
+master_rank,channel,bluebrain_compartment,other_model,other_compartment,residual_rmse,residual_mae,similarity,figure_number,run_tag,run_label,same_compartment
+1,PC KDR,soma,Bezaire,soma,0,0,similar,18,pc_soma__pv_soma,PC soma | PVBC soma,1
+2,PC A-type K,soma,Bezaire,soma,0,0,similar,18,pc_soma__pv_soma,PC soma | PVBC soma,1
+3,PC KDR,apic,Bezaire,apic,0,0,similar,19,pc_apic,PC apic,1
+4,PC KDR,dend,Bezaire,dend,0,0,similar,20,pc_dend,PC dend,1
+5,PC Na,soma,Canakci,soma,0.000396347932266708,0.000167289050222703,similar,18,pc_soma__pv_soma,PC soma | PVBC soma,1
+6,PC Na,apic,Canakci,apic,0.000396347932266708,0.000167289050222703,similar,19,pc_apic,PC apic,1
+7,PC Na,dend,Canakci,dend,0.000396347932266708,0.000167289050222703,similar,20,pc_dend,PC dend,1
+8,PVBC A-type K,soma,Bezaire,soma,0.00150693322559396,0.00110027184053966,similar,18,pc_soma__pv_soma,PC soma | PVBC soma,1
+9,PVBC A-type K,dend,Bezaire,dend,0.00215365091228962,0.0014985935160969,similar,21,pv_dend,PVBC dend,1
+10,PC Na,soma,Bezaire,soma,0.00222263120247963,0.00114029824283424,similar,18,pc_soma__pv_soma,PC soma | PVBC soma,1
+11,PVBC Na,soma,Bezaire,soma,0.00222263120247963,0.00114029824283424,similar,18,pc_soma__pv_soma,PC soma | PVBC soma,1
+12,PC Na,apic,Bezaire,apic,0.00222263120247963,0.00114029824283424,similar,19,pc_apic,PC apic,1
+13,PC Na,dend,Bezaire,dend,0.00222263120247963,0.00114029824283424,similar,20,pc_dend,PC dend,1
+14,PVBC Na,soma,Canakci,soma,0.0031775122094093,0.00203063608122868,similar,18,pc_soma__pv_soma,PC soma | PVBC soma,1
+15,PC KDR,soma,Canakci,soma,0.00335181247328488,0.0023192494761022,similar,18,pc_soma__pv_soma,PC soma | PVBC soma,1
+16,PC KDR,apic,Canakci,apic,0.00335181247328488,0.0023192494761022,similar,19,pc_apic,PC apic,1
+17,PC KDR,dend,Canakci,dend,0.00335181247328488,0.0023192494761022,similar,20,pc_dend,PC dend,1
+18,PVBC KDR,soma,Bezaire,soma,0.245427595595841,0.140183996771954,different,18,pc_soma__pv_soma,PC soma | PVBC soma,1
+19,PVBC KDR,dend,Bezaire,dend,0.245427595595841,0.140183996771954,different,21,pv_dend,PVBC dend,1
+20,PVBC KDR,soma,Canakci,soma,0.370896930258591,0.271828324190878,different,18,pc_soma__pv_soma,PC soma | PVBC soma,1
+21,PVBC KDR,dend,Canakci,dend,0.370896930258591,0.271828324190878,different,21,pv_dend,PVBC dend,1

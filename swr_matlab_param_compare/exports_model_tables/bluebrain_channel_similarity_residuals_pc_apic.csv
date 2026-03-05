@@ -1,0 +1,5 @@
+rank,channel,bluebrain_compartment,other_model,other_compartment,residual_rmse,residual_mae,similarity
+1,PC KDR,apic,Bezaire,apic,0,0,similar
+2,PC Na,apic,Canakci,apic,0.000396347932266708,0.000167289050222703,similar
+3,PC Na,apic,Bezaire,apic,0.00222263120247963,0.00114029824283424,similar
+4,PC KDR,apic,Canakci,apic,0.00335181247328488,0.0023192494761022,similar

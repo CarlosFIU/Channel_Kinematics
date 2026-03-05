@@ -5,7 +5,20 @@ function hh = hh_channel_kinematics_pvbc_params(json_path, section_name)
 % kind='ck_pvbc' corresponding to na3n.mod + kdrbca1.mod + kdb.mod.
 
 if nargin < 1 || isempty(json_path)
-    json_path = fullfile('..','PVBC_dynamics_params_sonata.json');
+    this_dir = fileparts(mfilename('fullpath'));
+    repo_root = fileparts(this_dir);
+    json_path = fullfile(repo_root, 'PVBC_dynamics_params_sonata.json');
+elseif ~isfile(json_path)
+    this_dir = fileparts(mfilename('fullpath'));
+    repo_root = fileparts(this_dir);
+    alt_path = fullfile(repo_root, json_path);
+    if isfile(alt_path)
+        json_path = alt_path;
+    end
+end
+
+if ~isfile(json_path)
+    error('Could not open PVBC dynamics JSON: %s', json_path);
 end
 if nargin < 2 || isempty(section_name)
     section_name = 'soma';

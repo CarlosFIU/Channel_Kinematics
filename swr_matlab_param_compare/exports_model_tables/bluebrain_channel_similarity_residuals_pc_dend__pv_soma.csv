@@ -1,0 +1,14 @@
+rank,channel,bluebrain_compartment,other_model,other_compartment,residual_rmse,residual_mae,similarity
+1,PC KDR,dend,Bezaire,dend,0,0,similar
+2,PVBC BK-like K,soma,Bezaire,soma,1.60865157433947e-11,1.13749226526663e-12,similar
+3,PVBC Ca-dependent K,soma,Bezaire,soma,6.99074257956197e-11,6.99074257956197e-11,similar
+4,PC Na,dend,Canakci,dend,0.000395685696328326,0.000166730489124566,similar
+5,PVBC A-type K,soma,Bezaire,soma,0.0015045352389351,0.001097378356202,similar
+6,PC Na,dend,Bezaire,dend,0.00221891753037434,0.00113601383782115,similar
+7,PVBC Na,soma,Bezaire,soma,0.00221891753037434,0.00113601383782115,similar
+8,PVBC Na,soma,Canakci,soma,0.00317222878655654,0.00202427746206731,similar
+9,PC KDR,dend,Canakci,dend,0.00334710251990296,0.0023143813814396,similar
+10,PVBC N-type Ca,soma,Bezaire,soma,0.00417552261487826,0.00222775417436504,similar
+11,PVBC KDR,soma,Bezaire,soma,0.245017675391333,0.139727238886849,different
+12,PVBC L-type Ca,soma,Bezaire,soma,0.259606167984355,0.151442501053463,different
+13,PVBC KDR,soma,Canakci,soma,0.370279163170688,0.270975113252551,different

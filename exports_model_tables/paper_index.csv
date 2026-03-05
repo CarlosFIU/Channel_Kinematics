@@ -1,0 +1,8 @@
+paper_id,citation,model_type,has_explicit_ion_kinetics,notes
+Evangelista2020,Evangelista et al. 2020,conductance-based LIF,0,"No explicit HH ion-channel gates; membrane and synaptic time constants are reported."
+Jahnke2015,Jahnke et al. 2015,LIF + alpha kernel,0,"No explicit HH ion-channel gates; alpha-kernel synapses and gsyn decay are reported."
+Taxidis2012,Taxidis et al. 2012,CA3-CA1 two-area biophysical network,1,"Uses Pinsky-Rinzel pyramidal and reduced Traub/Miles interneuron templates."
+RamirezVillegas2018,Ramirez-Villegas et al. 2018,multi-compartment CA3-CA1 biophysical network,1,"Uses Pinsky-Rinzel pyramidal and reduced Traub/Miles interneuron templates; full constants in supplemental tables."
+Canakci2017,Canakci et al. 2017,NEURON biophysical network,1,"Channel-rate equations available from associated ModelDB mechanisms (ca1ina, ca1ikdr, nafbwb, kdrbwb)."
+BlueBrainCA1,Blue Brain CA1 cellular mechanisms (as used in this repository SONATA dynamics),single-cell conductance mechanisms embedded in CA1 network context,1,"PC/PVBC soma channels pulled from SONATA dynamics JSON and NEURON mod kinetics."
+Bezaire2017,Bezaire et al. full-scale CA1 model (repository: mbezaire/ca1),full-scale CA1 network model with multicompartment biophysics and event-based synapses,1,"This table focuses on PC and PVBC channels/synapses and mechanism equations from the CA1 mod files."

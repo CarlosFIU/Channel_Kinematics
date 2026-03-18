@@ -246,7 +246,7 @@ for k = 1:numel(models)
 end
 
 %% -----------------------------
-% 5) Paper-level channel/synapse tables (five-paper list from review doc)
+% 5) Paper-level channel/synapse tables
 % ------------------------------
 [paper_tbl, channel_tbl, synapse_tbl] = swr_build_paper_tables();
 

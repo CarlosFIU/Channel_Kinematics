@@ -274,6 +274,46 @@ disp(synapse_tbl(1:min(10,height(synapse_tbl)), :));
 
 
 %% -----------------------------
+% 6) Cross-paper channel overlays including Traub single-cell models
+% ------------------------------
+swr_plot_author_channel_kinematics(V);
+
+%% -----------------------------
 % 7) Targeted PC/PVBC kinematics with explicit Bezaire CA1 equations
 % ------------------------------
-swr_plot_pc_pvbc_targeted_kinematics(V);
+swr_plot_pc_pvbc_targeted_kinematics(V, 'soma', 'soma', 18, 'both');
+swr_plot_pc_pvbc_targeted_kinematics(V, 'apic', 'soma', 19, 'pc_only');
+swr_plot_pc_pvbc_targeted_kinematics(V, 'dend', 'soma', 20, 'pc_only');
+swr_plot_pc_pvbc_targeted_kinematics(V, 'soma', 'dend', 21, 'pv_only');
+
+cleanup_targeted_kinematics_exports(pwd);
+
+function cleanup_targeted_kinematics_exports(run_dir)
+out_dir = fullfile(run_dir, 'exports_channel_kinematics');
+if ~exist(out_dir, 'dir')
+    return;
+end
+
+keep_names = { ...
+    'paper_compare_PC_PVBC_targeted_kinematics_pc_soma__pv_soma.pptx', ...
+    'paper_compare_PC_PVBC_targeted_kinematics_pc_apic.pptx', ...
+    'paper_compare_PC_PVBC_targeted_kinematics_pc_dend.pptx', ...
+    'paper_compare_PC_PVBC_targeted_kinematics_pv_dend.pptx'};
+
+items = dir(out_dir);
+for k = 1:numel(items)
+    if items(k).isdir
+        continue;
+    end
+    if any(strcmpi(items(k).name, keep_names))
+        continue;
+    end
+    try
+        delete(fullfile(out_dir, items(k).name));
+    catch ME
+        warning('Could not delete export artifact %s: %s', fullfile(out_dir, items(k).name), ME.message);
+    end
+end
+
+fprintf('Cleaned targeted-kinematics export folder. Kept %d PowerPoint files in %s\n', numel(keep_names), out_dir);
+end

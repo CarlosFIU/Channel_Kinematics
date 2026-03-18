@@ -42,30 +42,6 @@ switch plot_scope
         error('Unsupported plot_scope: %s (expected both|pc_only|pv_only)', plot_scope);
 end
 
-% Canakci kinetics (single mechanism set in this script). We still label
-% each compartment explicitly in legends for side-by-side section figures.
-g_can_pc = hh_compute_gating(V, hh_canakci_pyr_params());
-g_can_pv = hh_compute_gating(V, hh_canakci_pv_params(34));
-p_can_pc_na = g_can_pc.m_inf.^3 .* g_can_pc.h_inf .* g_can_pc.i_inf;
-p_can_pv_na = g_can_pv.m_inf.^3 .* g_can_pv.h_inf;
-
-% BlueBrain kinetics by compartment from SONATA parameters.
-bb_pc_by_sec = load_bluebrain_sections(V, 'pc', pc_sections);
-bb_pv_by_sec = load_bluebrain_sections(V, 'pvbc', pv_sections);
-
-% Bezaire kinetics by compartment from mbezaire/ca1 equations in this file.
-bz_pc_by_sec = struct();
-for s = 1:numel(pc_sections)
-    sec = pc_sections{s};
-    bz_pc_by_sec.(sec) = bezaire_pc_rates_by_section(V, 34, sec);
-end
-
-bz_pv_by_sec = struct();
-for s = 1:numel(pv_sections)
-    sec = pv_sections{s};
-    bz_pv_by_sec.(sec) = bezaire_pvbc_rates_by_section(V, 34, 5e-6, sec);
-end
-
 col_can = [0.00 0.45 0.74];
 col_bb  = [0.85 0.33 0.10];
 col_bz  = [0.20 0.60 0.20];
@@ -74,12 +50,46 @@ out_dir = fullfile(pwd, 'exports_channel_kinematics');
 if ~exist(out_dir, 'dir')
     mkdir(out_dir);
 end
-fig_handles = gobjects(0,1);
+sim_fig_handles = gobjects(0,1);
+diff_fig_handles = gobjects(0,1);
 
-% Compute BlueBrain channels beyond na/kdr so missing channels are included.
-bb_extra = bluebrain_extra_rates(V, 34, 50e-6);
 bb_pc_json = load_bluebrain_json('pc');
 bb_pv_json = load_bluebrain_json('pvbc');
+shared_vrest_mv = shared_resting_potential_mv();
+vnorm = build_shared_voltage_normalization(V, shared_vrest_mv, bb_pc_json, bb_pv_json);
+
+% Canakci kinetics (single mechanism set in this script). We still label
+% each compartment explicitly in legends for side-by-side section figures.
+g_can_pc = hh_compute_gating(vnorm.can_pc.V_eval, hh_canakci_pyr_params());
+g_can_pv = hh_compute_gating(vnorm.can_pv.V_eval, hh_canakci_pv_params(34));
+p_can_pc_na = g_can_pc.m_inf.^3 .* g_can_pc.h_inf .* g_can_pc.i_inf;
+p_can_pv_na = g_can_pv.m_inf.^3 .* g_can_pv.h_inf;
+
+% BlueBrain kinetics by compartment from SONATA parameters.
+bb_pc_by_sec = load_bluebrain_sections(vnorm.bb_pc.V_eval, 'pc', pc_sections);
+bb_pv_by_sec = load_bluebrain_sections(vnorm.bb_pv.V_eval, 'pvbc', pv_sections);
+
+% Traub single-cell analog models by compartment class.
+traub_pc_by_sec = load_traub_sections(vnorm.traub_pc.V_eval, pc_sections, 'pc');
+traub_int_by_sec = load_traub_sections(vnorm.traub_int.V_eval, pv_sections, 'int');
+
+% Bezaire kinetics by compartment from mbezaire/ca1 equations in this file.
+bz_pc_by_sec = struct();
+for s = 1:numel(pc_sections)
+    sec = pc_sections{s};
+    bz_pc_by_sec.(sec) = bezaire_pc_rates_by_section(vnorm.bz_pc.V_eval, 34, sec);
+end
+
+bz_pv_by_sec = struct();
+for s = 1:numel(pv_sections)
+    sec = pv_sections{s};
+    bz_pv_by_sec.(sec) = bezaire_pvbc_rates_by_section(vnorm.bz_pv.V_eval, 34, 5e-6, sec);
+end
+
+% Compute BlueBrain channels beyond na/kdr so missing channels are included.
+bb_extra_pc = bluebrain_extra_rates(vnorm.bb_pc.V_eval, 34, 50e-6);
+bb_extra_pv = bluebrain_extra_rates(vnorm.bb_pv.V_eval, 34, 50e-6);
+bb_extra = struct('pc', bb_extra_pc.pc, 'pv', bb_extra_pv.pv);
 
 % -------------------------------------------------------------------------
 % 1) Shared/similar channels first
@@ -119,6 +129,15 @@ for s = 1:numel(pc_sections)
             {bz.tau_m_nav, bz.tau_h_nav, bz.tau_s_nav}, ...
             bz.p_nav);
     end
+
+    tr = traub_pc_by_sec.(sec);
+    if tr.has_na
+        entries = add_channel_entry(entries, 'Traub PC', sec, ...
+            {'m','h'}, ...
+            {tr.m_na, tr.h_na}, ...
+            {tr.tau_m_na, tr.tau_h_na}, ...
+            tr.p_na);
+    end
 end
 shared_defs = append_channel_def(shared_defs, 'PC Na', entries);
 
@@ -138,6 +157,12 @@ for s = 1:numel(pc_sections)
     bz = bz_pc_by_sec.(sec);
     entries = add_channel_entry(entries, 'Bezaire', sec, ...
         {'n'}, {bz.n_kdr}, {bz.tau_n_kdr}, bz.p_kdr);
+
+    tr = traub_pc_by_sec.(sec);
+    if tr.has_kdr
+        entries = add_channel_entry(entries, 'Traub PC', sec, ...
+            {'n'}, {tr.n_kdr}, {tr.tau_n_kdr}, tr.p_kdr);
+    end
 end
 shared_defs = append_channel_def(shared_defs, 'PC KDR', entries);
 
@@ -166,6 +191,15 @@ for s = 1:numel(pv_sections)
         {bz.m_nav, bz.h_nav}, ...
         {bz.tau_m_nav, bz.tau_h_nav}, ...
         bz.p_nav);
+
+    tr = traub_int_by_sec.(sec);
+    if tr.has_na
+        entries = add_channel_entry(entries, 'Traub INT', sec, ...
+            {'m','h'}, ...
+            {tr.m_na, tr.h_na}, ...
+            {tr.tau_m_na, tr.tau_h_na}, ...
+            tr.p_na);
+    end
 end
 shared_defs = append_channel_def(shared_defs, 'PVBC Na', entries);
 
@@ -185,6 +219,12 @@ for s = 1:numel(pv_sections)
     bz = bz_pv_by_sec.(sec);
     entries = add_channel_entry(entries, 'Bezaire', sec, ...
         {'n'}, {bz.n_kdrfast}, {bz.tau_n_kdrfast}, bz.p_kdrfast);
+
+    tr = traub_int_by_sec.(sec);
+    if tr.has_kdr
+        entries = add_channel_entry(entries, 'Traub INT', sec, ...
+            {'n'}, {tr.n_kdr}, {tr.tau_n_kdr}, tr.p_kdr);
+    end
 end
 shared_defs = append_channel_def(shared_defs, 'PVBC KDR', entries);
 
@@ -208,6 +248,14 @@ for s = 1:numel(pc_sections)
         {'n','l'}, {bz.n_kvap, bz.l_kvap}, ...
         {bz.tau_n_kvap, bz.tau_l_kvap}, ...
         bz.p_kvap);
+
+    tr = traub_pc_by_sec.(sec);
+    if tr.has_ka
+        entries = add_channel_entry(entries, 'Traub PC', sec, ...
+            {'a','b'}, {tr.a_ka, tr.b_ka}, ...
+            {tr.tau_a_ka, tr.tau_b_ka}, ...
+            tr.p_ka);
+    end
 end
 shared_defs = append_channel_def(shared_defs, 'PC A-type K', entries);
 
@@ -233,14 +281,19 @@ for s = 1:numel(pv_sections)
         {bz.n_kva, bz.l_kva}, ...
         {bz.tau_n_kva, bz.tau_l_kva}, ...
         bz.p_kva);
+
+    tr = traub_int_by_sec.(sec);
+    if tr.has_ka
+        entries = add_channel_entry(entries, 'Traub INT', sec, ...
+            {'a','b'}, ...
+            {tr.a_ka, tr.b_ka}, ...
+            {tr.tau_a_ka, tr.tau_b_ka}, ...
+            tr.p_ka);
+    end
 end
 shared_defs = append_channel_def(shared_defs, 'PVBC A-type K', entries);
 
 % Ca-dependent families are reported as cai-vs-probability only (below).
-
-for k = 1:numel(shared_defs)
-    fig_handles(end+1) = plot_channel_definition(V, shared_defs{k}, out_dir, 'shared', run_tag, run_label, col_can, col_bb, col_bz); %#ok<AGROW>
-end
 
 % -------------------------------------------------------------------------
 % 2) Individual model-specific channels after shared ones
@@ -270,6 +323,20 @@ for s = 1:numel(pc_sections)
     end
 end
 ind_defs = append_channel_def(ind_defs, 'BlueBrain PC T-type Ca', entries);
+
+entries = struct([]);
+for s = 1:numel(pc_sections)
+    sec = pc_sections{s};
+    tr = traub_pc_by_sec.(sec);
+    if tr.has_ca
+        entries = add_channel_entry(entries, 'Traub PC', sec, ...
+            {'s','r'}, ...
+            {tr.s_ca, tr.r_ca}, ...
+            {tr.tau_s_ca, tr.tau_r_ca}, ...
+            tr.p_ca);
+    end
+end
+ind_defs = append_channel_def(ind_defs, 'Traub PC high-threshold Ca', entries);
 
 % BlueBrain PVBC-only families
 entries = struct([]);
@@ -316,6 +383,20 @@ for s = 1:numel(pv_sections)
 end
 ind_defs = append_channel_def(ind_defs, 'BlueBrain PVBC T-type Ca', entries);
 
+entries = struct([]);
+for s = 1:numel(pv_sections)
+    sec = pv_sections{s};
+    tr = traub_int_by_sec.(sec);
+    if tr.has_ca
+        entries = add_channel_entry(entries, 'Traub INT', sec, ...
+            {'s','r'}, ...
+            {tr.s_ca, tr.r_ca}, ...
+            {tr.tau_s_ca, tr.tau_r_ca}, ...
+            tr.p_ca);
+    end
+end
+ind_defs = append_channel_def(ind_defs, 'Traub INT high-threshold Ca', entries);
+
 % Bezaire PC channels that do not have BlueBrain counterparts in these sections.
 entries = struct([]);
 for s = 1:numel(pc_sections)
@@ -347,10 +428,6 @@ for s = 1:numel(pc_sections)
 end
 ind_defs = append_channel_def(ind_defs, 'Bezaire PC HCN', entries);
 
-for k = 1:numel(ind_defs)
-    fig_handles(end+1) = plot_channel_definition(V, ind_defs{k}, out_dir, 'individual', run_tag, run_label, col_can, col_bb, col_bz); %#ok<AGROW>
-end
-
 all_defs = [shared_defs ind_defs];
 sim_tbl = build_bluebrain_similarity_table(all_defs);
 table_out_dir = fullfile(pwd, 'exports_model_tables');
@@ -365,18 +442,16 @@ Vfix = -40;
 f_cai = figure('Name', sprintf('Calcium-dependent channels (cai vs probability) [%s]', run_label), 'Color','w');
 hold on;
 cai_panel = init_cai_panel();
-if ~isempty(pv_sections)
-    cai_panel.model_names = {'BlueBrain','Bezaire'};
-else
-    cai_panel.model_names = {'BlueBrain'};
-end
+cai_panel.model_names = {};
 
 if ~isempty(pc_sections)
-    [m_bb_cal_fix, ~] = bb_cal_rates(Vfix, 34, 5, 0.2, 0.1, 2, 4, 0.1);
-    [m_bb_can_fix, ~, h_bb_can_fix, ~] = bb_can_rates(Vfix, 34, 5, 0.2, 3, 0.03, 2, -14, 0.1);
+    cai_panel.model_names = append_model_name(cai_panel.model_names, 'BlueBrain');
+    Vfix_bb_pc = normalized_fixed_voltage(Vfix, vnorm.bb_pc);
+    [m_bb_cal_fix, ~] = bb_cal_rates(Vfix_bb_pc, 34, 5, 0.2, 0.1, 2, 4, 0.1);
+    [m_bb_can_fix, ~, h_bb_can_fix, ~] = bb_can_rates(Vfix_bb_pc, 34, 5, 0.2, 3, 0.03, 2, -14, 0.1);
     p_bb_kca = (cai ./ 0.00035).^4 ./ (1 + (cai ./ 0.00035).^4);
     p_bb_kca = p_bb_kca.^3;
-    [p_bb_cagk_cai, ~] = bb_cagk_rates(Vfix .* ones(size(cai)), 34, cai, 0.84, 1, 0.48e-3, 0.13e-6, 0.28, 0.48);
+    [p_bb_cagk_cai, ~] = bb_cagk_rates(Vfix_bb_pc .* ones(size(cai)), 34, cai, 0.84, 1, 0.48e-3, 0.13e-6, 0.28, 0.48);
     p_bb_cal_cai = (m_bb_cal_fix.^2) .* (cai ./ (cai + 50e-6));
     p_bb_can_cai = (m_bb_can_fix.^2) .* h_bb_can_fix .* (cai ./ (cai + 50e-6));
 
@@ -388,21 +463,33 @@ if ~isempty(pc_sections)
     cai_panel = add_cai_curve(cai_panel, h);
     h = plot(cai*1e3, p_bb_can_cai, 'LineWidth', 1.7, 'DisplayName', sprintf('BlueBrain PC %s can @ V=%g', pc_section, Vfix));
     cai_panel = add_cai_curve(cai_panel, h);
+
+    cai_panel.model_names = append_model_name(cai_panel.model_names, 'Traub PC');
+    Vfix_tr_pc = normalized_fixed_voltage(Vfix, vnorm.traub_pc);
+    [p_tr_pc_kc_cai, p_tr_pc_kahp_cai] = traub_calcium_sweeps(cai, Vfix_tr_pc);
+    h = plot(cai*1e3, p_tr_pc_kc_cai, '-.', 'LineWidth', 1.8, 'DisplayName', sprintf('Traub PC %s KC @ V=%g', pc_section, Vfix));
+    cai_panel = add_cai_curve(cai_panel, h);
+    h = plot(cai*1e3, p_tr_pc_kahp_cai, '-.', 'LineWidth', 1.8, 'DisplayName', sprintf('Traub PC %s KAHP', pc_section));
+    cai_panel = add_cai_curve(cai_panel, h);
 end
 
 if ~isempty(pv_sections)
+    cai_panel.model_names = append_model_name(cai_panel.model_names, 'BlueBrain');
+    cai_panel.model_names = append_model_name(cai_panel.model_names, 'Bezaire');
+    Vfix_bz_pv = normalized_fixed_voltage(Vfix, vnorm.bz_pv);
     % Bezaire PV calcium-dependent channels.
-    [p_bz_kcas_cai, ~, p_bz_cavl_h2_cai] = bezaire_ca_sweeps(cai, Vfix, 34);
-    [p_bz_kvcab_cai, ~] = kvcab_rates(Vfix .* ones(size(cai)), cai, 34);
-    [m_bz_cavl_fix, ~] = cavl_m_rates(Vfix);
+    [p_bz_kcas_cai, ~, p_bz_cavl_h2_cai] = bezaire_ca_sweeps(cai, Vfix_bz_pv, 34);
+    [p_bz_kvcab_cai, ~] = kvcab_rates(Vfix_bz_pv .* ones(size(cai)), cai, 34);
+    [m_bz_cavl_fix, ~] = cavl_m_rates(Vfix_bz_pv);
     p_bz_cavl_cai = (m_bz_cavl_fix.^2) .* p_bz_cavl_h2_cai;
 
     % BlueBrain PV uses same mechanism forms as PC in this local set.
-    [m_bb_cal_fix, ~] = bb_cal_rates(Vfix, 34, 5, 0.2, 0.1, 2, 4, 0.1);
-    [m_bb_can_fix, ~, h_bb_can_fix, ~] = bb_can_rates(Vfix, 34, 5, 0.2, 3, 0.03, 2, -14, 0.1);
+    Vfix_bb_pv = normalized_fixed_voltage(Vfix, vnorm.bb_pv);
+    [m_bb_cal_fix, ~] = bb_cal_rates(Vfix_bb_pv, 34, 5, 0.2, 0.1, 2, 4, 0.1);
+    [m_bb_can_fix, ~, h_bb_can_fix, ~] = bb_can_rates(Vfix_bb_pv, 34, 5, 0.2, 3, 0.03, 2, -14, 0.1);
     p_bb_kca = (cai ./ 0.00035).^4 ./ (1 + (cai ./ 0.00035).^4);
     p_bb_kca = p_bb_kca.^3;
-    [p_bb_cagk_cai, ~] = bb_cagk_rates(Vfix .* ones(size(cai)), 34, cai, 0.84, 1, 0.48e-3, 0.13e-6, 0.28, 0.48);
+    [p_bb_cagk_cai, ~] = bb_cagk_rates(Vfix_bb_pv .* ones(size(cai)), 34, cai, 0.84, 1, 0.48e-3, 0.13e-6, 0.28, 0.48);
     p_bb_cal_cai = (m_bb_cal_fix.^2) .* (cai ./ (cai + 50e-6));
     p_bb_can_cai = (m_bb_can_fix.^2) .* h_bb_can_fix .* (cai ./ (cai + 50e-6));
 
@@ -420,6 +507,14 @@ if ~isempty(pv_sections)
     cai_panel = add_cai_curve(cai_panel, h);
     h = plot(cai*1e3, p_bz_cavl_cai, ':', 'LineWidth', 1.9, 'DisplayName', sprintf('Bezaire PVBC %s CavL @ V=%g', pv_section, Vfix));
     cai_panel = add_cai_curve(cai_panel, h);
+
+    cai_panel.model_names = append_model_name(cai_panel.model_names, 'Traub INT');
+    Vfix_tr_int = normalized_fixed_voltage(Vfix, vnorm.traub_int);
+    [p_tr_int_kc_cai, p_tr_int_kahp_cai] = traub_calcium_sweeps(cai, Vfix_tr_int);
+    h = plot(cai*1e3, p_tr_int_kc_cai, '-.', 'LineWidth', 1.8, 'DisplayName', sprintf('Traub INT %s KC @ V=%g', pv_section, Vfix));
+    cai_panel = add_cai_curve(cai_panel, h);
+    h = plot(cai*1e3, p_tr_int_kahp_cai, '-.', 'LineWidth', 1.8, 'DisplayName', sprintf('Traub INT %s KAHP', pv_section));
+    cai_panel = add_cai_curve(cai_panel, h);
 end
 
 set(gca,'XScale','log');
@@ -430,14 +525,40 @@ place_legend_safely(gca);
 set(gcf,'Position',[120 180 1200 420]);
 exportgraphics(f_cai, fullfile(out_dir, sprintf('paper_compare_PC_PVBC_cai_sweeps_%s.png', run_tag)), ...
     'Resolution',180);
-fig_handles(end+1) = f_cai; %#ok<AGROW>
 
-f_complete = build_complete_figure(V, all_defs, cai_panel, out_dir, complete_fig_num, run_tag, run_label, col_can, col_bb, col_bz);
-if ishghandle(f_complete)
-    fig_handles(end+1) = f_complete; %#ok<AGROW>
+[diff_defs, sim_defs] = partition_defs_by_similarity(all_defs, sim_tbl);
+f_complete_sim = build_complete_figure(V, sim_defs, init_cai_panel(), out_dir, complete_fig_num + 4, ...
+    sprintf('%s_similar', run_tag), run_label, 'similar', col_can, col_bb, col_bz, shared_vrest_mv);
+if ishghandle(f_complete_sim)
+    sim_fig_handles(end+1) = f_complete_sim; %#ok<AGROW>
 end
 
-export_target_figures_to_powerpoint(fig_handles, out_dir, ...
+sim_channel_figs = plot_channel_definition_set(V, sim_defs, out_dir, 'similar', run_tag, run_label, col_can, col_bb, col_bz);
+sim_fig_handles = append_figure_handles(sim_fig_handles, sim_channel_figs);
+if isempty(sim_fig_handles)
+    sim_fig_handles = build_empty_category_figure(run_label, 'similar channels', ...
+        'No channels met the similar residual grouping for this compartment set.');
+end
+
+f_complete_diff = build_complete_figure(V, diff_defs, cai_panel, out_dir, complete_fig_num, ...
+    sprintf('%s_different', run_tag), run_label, 'moderately different/different', col_can, col_bb, col_bz, shared_vrest_mv);
+if ishghandle(f_complete_diff)
+    diff_fig_handles(end+1) = f_complete_diff; %#ok<AGROW>
+end
+
+if ishghandle(f_cai)
+    diff_fig_handles(end+1) = f_cai; %#ok<AGROW>
+end
+
+diff_channel_figs = plot_channel_definition_set(V, diff_defs, out_dir, 'different', run_tag, run_label, col_can, col_bb, col_bz);
+diff_fig_handles = append_figure_handles(diff_fig_handles, diff_channel_figs);
+if isempty(diff_fig_handles)
+    diff_fig_handles = build_empty_category_figure(run_label, 'moderately different/different channels', ...
+        'No channels met the moderately-different-or-different residual grouping for this compartment set.');
+end
+
+all_fig_handles = append_figure_handles(sim_fig_handles, diff_fig_handles);
+export_target_figures_to_powerpoint(all_fig_handles, out_dir, ...
     sprintf('paper_compare_PC_PVBC_targeted_kinematics_%s.pptx', run_tag));
 end
 
@@ -479,6 +600,49 @@ end
 raw = jsondecode(fileread(json_path));
 end
 
+function shared_vrest_mv = shared_resting_potential_mv()
+shared_vrest_mv = -70;
+end
+
+function vnorm = build_shared_voltage_normalization(V_shared, shared_vrest_mv, bb_pc_json, bb_pv_json)
+vnorm = struct();
+vnorm.shared_vrest_mv = shared_vrest_mv;
+vnorm.can_pc = make_voltage_normalization_context(V_shared, -70, shared_vrest_mv);
+vnorm.can_pv = make_voltage_normalization_context(V_shared, -65, shared_vrest_mv);
+vnorm.bb_pc  = make_voltage_normalization_context(V_shared, bluebrain_resting_potential(bb_pc_json), shared_vrest_mv);
+vnorm.bb_pv  = make_voltage_normalization_context(V_shared, bluebrain_resting_potential(bb_pv_json), shared_vrest_mv);
+vnorm.bz_pc  = make_voltage_normalization_context(V_shared, -66, shared_vrest_mv);
+vnorm.bz_pv  = make_voltage_normalization_context(V_shared, -65, shared_vrest_mv);
+vnorm.traub_pc  = make_voltage_normalization_context(V_shared, 0, shared_vrest_mv);
+vnorm.traub_int = make_voltage_normalization_context(V_shared, 0, shared_vrest_mv);
+end
+
+function ctx = make_voltage_normalization_context(V_shared, model_vrest_mv, shared_vrest_mv)
+ctx = struct();
+ctx.v_rest_mv = model_vrest_mv;
+ctx.v_shift_mv = model_vrest_mv - shared_vrest_mv;
+ctx.V_eval = V_shared + ctx.v_shift_mv;
+end
+
+function vfix_eval = normalized_fixed_voltage(vfix_shared, ctx)
+vfix_eval = vfix_shared + ctx.v_shift_mv;
+end
+
+function vrest_mv = bluebrain_resting_potential(raw)
+vrest_mv = shared_resting_potential_mv();
+if isfield(raw, 'conditions') && ~isempty(raw.conditions)
+    cond = raw.conditions(1);
+    if isfield(cond, 'v_init') && ~isempty(cond.v_init) && isfinite(cond.v_init)
+        vrest_mv = cond.v_init;
+        return;
+    end
+    if isfield(cond, 'e_pas') && ~isempty(cond.e_pas) && isfinite(cond.e_pas)
+        vrest_mv = cond.e_pas;
+        return;
+    end
+end
+end
+
 function tf = json_has_param(raw, section_name, param_name)
 if ~isfield(raw, 'genome') || isempty(raw.genome)
     tf = false;
@@ -517,6 +681,21 @@ if ~isfield(g, field_name)
 end
 v = g.(field_name);
 tf = ~(isempty(v) || all(isnan(v)) || all(v <= 0));
+end
+
+function by_sec = load_traub_sections(V, sections, cell_kind)
+by_sec = struct();
+for s = 1:numel(sections)
+    sec = sections{s};
+    switch lower(cell_kind)
+        case 'pc'
+            by_sec.(sec) = traub_pc_rates_by_section(V, sec);
+        case 'int'
+            by_sec.(sec) = traub_int_rates_by_section(V, sec);
+        otherwise
+            error('Unsupported Traub cell kind: %s', cell_kind);
+    end
+end
 end
 
 function out = bezaire_pc_rates_by_section(V, celsius, section_name)
@@ -626,6 +805,118 @@ function [pkcas, pkvcab, ph2] = bezaire_ca_sweeps(cai, Vfix, celsius)
 pkcas = q.^2;
 [pkvcab,~] = kvcab_rates(Vfix .* ones(size(cai)), cai, celsius);
 ph2 = 0.001 ./ (0.001 + cai);
+end
+
+function out = traub_pc_rates_by_section(V, section_name)
+flags = traub_pc_section_flags(section_name);
+out = init_traub_section_struct(V);
+out.has_na = flags.na;
+out.has_kdr = flags.kdr;
+out.has_ka = flags.ka;
+out.has_ca = flags.ca;
+out.has_kc = flags.kc;
+out.has_kahp = flags.kahp;
+if flags.na
+    [out.m_na, out.h_na, out.tau_m_na, out.tau_h_na] = traub_na_rates(V);
+    out.p_na = out.m_na.^2 .* out.h_na;
+end
+if flags.kdr
+    [out.n_kdr, out.tau_n_kdr] = traub_kdr_rates(V);
+    out.p_kdr = out.n_kdr;
+end
+if flags.ka
+    [out.a_ka, out.b_ka, out.tau_a_ka, out.tau_b_ka] = traub_ka_rates(V);
+    out.p_ka = out.a_ka .* out.b_ka;
+end
+if flags.ca
+    [out.s_ca, out.r_ca, out.tau_s_ca, out.tau_r_ca] = traub_ca_rates(V);
+    out.p_ca = (out.s_ca.^2) .* out.r_ca;
+end
+end
+
+function out = traub_int_rates_by_section(V, section_name)
+flags = traub_int_section_flags(section_name);
+out = init_traub_section_struct(V);
+out.has_na = flags.na;
+out.has_kdr = flags.kdr;
+out.has_ka = flags.ka;
+out.has_ca = flags.ca;
+out.has_kc = flags.kc;
+out.has_kahp = flags.kahp;
+if flags.na
+    [out.m_na, out.h_na, out.tau_m_na, out.tau_h_na] = traub_na_rates(V);
+    out.p_na = out.m_na.^2 .* out.h_na;
+end
+if flags.kdr
+    [out.n_kdr, out.tau_n_kdr] = traub_kdr_rates(V);
+    out.p_kdr = out.n_kdr;
+end
+if flags.ka
+    [out.a_ka, out.b_ka, out.tau_a_ka, out.tau_b_ka] = traub_ka_rates(V);
+    out.p_ka = out.a_ka .* out.b_ka;
+end
+if flags.ca
+    [out.s_ca, out.r_ca, out.tau_s_ca, out.tau_r_ca] = traub_ca_rates(V);
+    out.p_ca = (out.s_ca.^2) .* out.r_ca;
+end
+end
+
+function out = init_traub_section_struct(V)
+out = struct( ...
+    'has_na', false, ...
+    'has_kdr', false, ...
+    'has_ka', false, ...
+    'has_ca', false, ...
+    'has_kc', false, ...
+    'has_kahp', false, ...
+    'm_na', nan(size(V)), ...
+    'h_na', nan(size(V)), ...
+    'tau_m_na', nan(size(V)), ...
+    'tau_h_na', nan(size(V)), ...
+    'p_na', nan(size(V)), ...
+    'n_kdr', nan(size(V)), ...
+    'tau_n_kdr', nan(size(V)), ...
+    'p_kdr', nan(size(V)), ...
+    'a_ka', nan(size(V)), ...
+    'b_ka', nan(size(V)), ...
+    'tau_a_ka', nan(size(V)), ...
+    'tau_b_ka', nan(size(V)), ...
+    'p_ka', nan(size(V)), ...
+    's_ca', nan(size(V)), ...
+    'r_ca', nan(size(V)), ...
+    'tau_s_ca', nan(size(V)), ...
+    'tau_r_ca', nan(size(V)), ...
+    'p_ca', nan(size(V)));
+end
+
+function flags = traub_pc_section_flags(section_name)
+flags = struct('na', false, 'kdr', false, 'ka', false, 'ca', false, 'kc', false, 'kahp', false);
+switch lower(strtrim(char(section_name)))
+    case 'soma'
+        flags = struct('na', true, 'kdr', true, 'ka', true, 'ca', true, 'kc', true, 'kahp', true);
+    case {'apic','dend'}
+        % Traub 1991 places Na/KDR only in subsets of apical and basal dendrites,
+        % while Ca/K(C)/K(AHP) populate most dendritic compartments.
+        flags = struct('na', true, 'kdr', true, 'ka', false, 'ca', true, 'kc', true, 'kahp', true);
+end
+end
+
+function flags = traub_int_section_flags(section_name)
+flags = struct('na', false, 'kdr', false, 'ka', false, 'ca', false, 'kc', false, 'kahp', false);
+switch lower(strtrim(char(section_name)))
+    case {'soma','dend'}
+        % Standard Traub/Miles 1995 active-dendrite model with layer-dependent
+        % conductance densities across the soma-dendritic tree.
+        flags = struct('na', true, 'kdr', true, 'ka', true, 'ca', true, 'kc', true, 'kahp', true);
+end
+end
+
+function [p_kc_cai, p_kahp_cai] = traub_calcium_sweeps(cai_mM, Vfix_rel)
+cai_uM = cai_mM .* 1e3;
+[c_fix, ~] = traub_kc_rates(Vfix_rel);
+[q_inf, ~] = traub_kahp_rates(cai_uM);
+p_kc_cai = c_fix .* min(cai_uM ./ 250, 1);
+p_kahp_cai = q_inf;
 end
 
 function [m,h,s,tau_m,tau_h,tau_s] = navp_rates(V, celsius, sh, ar2)
@@ -770,6 +1061,78 @@ o = alp ./ (alp + bet);
 tau_o = 1./(alp + bet);
 end
 
+function [m_inf, h_inf, tau_m, tau_h] = traub_na_rates(V)
+alpha = 0.32 .* traub_trap_exp_ratio(13.1 - V, 4);
+beta = 0.28 .* traub_trap_exp_ratio(V - 40.1, 5);
+tau_m = 1 ./ (alpha + beta);
+m_inf = alpha .* tau_m;
+
+alpha = 0.128 .* exp((17 - V) ./ 18);
+beta = 4 ./ (1 + exp((40 - V) ./ 5));
+tau_h = 1 ./ (alpha + beta);
+h_inf = alpha .* tau_h;
+end
+
+function [n_inf, tau_n] = traub_kdr_rates(V)
+alpha = 0.016 .* traub_trap_exp_ratio(35.1 - V, 5);
+beta = 0.25 .* exp((20 - V) ./ 40);
+tau_n = 1 ./ (alpha + beta);
+n_inf = alpha .* tau_n;
+end
+
+function [a_inf, b_inf, tau_a, tau_b] = traub_ka_rates(V)
+alpha = 0.02 .* traub_trap_exp_ratio(13.1 - V, 10);
+beta = 0.0175 .* traub_trap_exp_ratio(V - 40.1, 10);
+tau_a = 1 ./ (alpha + beta);
+a_inf = alpha .* tau_a;
+
+alpha = 0.0016 .* exp((-13 - V) ./ 18);
+beta = 0.05 ./ (1 + exp((10.1 - V) ./ 5));
+tau_b = 1 ./ (alpha + beta);
+b_inf = alpha .* tau_b;
+end
+
+function [s_inf, r_inf, tau_s, tau_r] = traub_ca_rates(V)
+alpha = 1.6 ./ (1 + exp(-0.072 .* (V - 65)));
+beta = 0.02 .* traub_trap_exp_ratio(V - 51.1, 5);
+tau_s = 1 ./ (alpha + beta);
+s_inf = alpha .* tau_s;
+
+alpha = 0.005 .* ones(size(V));
+idx = V > 0;
+alpha(idx) = exp(-V(idx) ./ 20) ./ 200;
+beta = zeros(size(V));
+beta(idx) = 0.005 - exp(-V(idx) ./ 20) ./ 200;
+tau_r = 1 ./ (alpha + beta);
+r_inf = alpha .* tau_r;
+end
+
+function [c_inf, tau_c] = traub_kc_rates(V)
+alpha = zeros(size(V));
+beta = zeros(size(V));
+idx = V <= 50;
+alpha(idx) = exp((V(idx) - 10) ./ 11 - (V(idx) - 6.5) ./ 27) ./ 18.975;
+alpha(~idx) = 2 .* exp(-(V(~idx) - 6.5) ./ 27);
+beta(idx) = 2 .* exp(-(V(idx) - 6.5) ./ 27) - alpha(idx);
+tau_c = 1 ./ (alpha + beta);
+c_inf = alpha .* tau_c;
+end
+
+function [q_inf, tau_q] = traub_kahp_rates(cai_uM)
+alpha = 0.2e-4 .* cai_uM;
+alpha(alpha > 0.01) = 0.01;
+beta = 0.001;
+tau_q = 1 ./ (alpha + beta);
+q_inf = alpha .* tau_q;
+end
+
+function y = traub_trap_exp_ratio(x, q)
+z = x ./ q;
+y = x ./ (exp(z) - 1);
+small = abs(z) < 1e-6;
+y(small) = q .* (1 - z(small) ./ 2);
+end
+
 function d = make_channel_def(name, entries)
 d = struct();
 d.name = name;
@@ -802,35 +1165,20 @@ end
 function f = plot_channel_definition(V, d, out_dir, prefix, run_tag, run_label, col_can, col_bb, col_bz)
 gate_styles = {'-','--',':','-.'};
 popen_styles = {'-','--',':','-.'};
-f = figure('Name', sprintf('Channel Comparison - %s [%s]', d.name, run_label), 'Color', 'w');
-tiledlayout(2,2,'Padding','compact','TileSpacing','compact');
+group_title = channel_group_title(prefix);
+f = figure('Name', sprintf('%s - %s [%s]', group_title, d.name, run_label), 'Color', 'w');
+tiledlayout(1,2,'Padding','compact','TileSpacing','compact');
 
-% opening
 nexttile; hold on;
 for m = 1:numel(d.entries)
     e = d.entries(m);
     c = model_color(e.model, col_can, col_bb, col_bz);
-    for g = 1:numel(e.gate_open)
-        ls = gate_styles{mod(g-1, numel(gate_styles))+1};
-        plot(V, e.gate_open{g}, ls, 'Color', c, 'LineWidth', 1.5, ...
-            'DisplayName', sprintf('%s %s', e.model, e.gate_names{g}));
-    end
+    ls = popen_styles{mod(m-1, numel(popen_styles))+1};
+    plot(V, e.p_open, ls, 'Color', c, 'LineWidth', 1.8, ...
+        'DisplayName', e.model);
 end
-xlabel('V (mV)'); ylabel('x_{\infty}');
-grid on; place_legend_safely(gca);
-
-% closing
-nexttile; hold on;
-for m = 1:numel(d.entries)
-    e = d.entries(m);
-    c = model_color(e.model, col_can, col_bb, col_bz);
-    for g = 1:numel(e.gate_open)
-        ls = gate_styles{mod(g-1, numel(gate_styles))+1};
-        plot(V, 1 - e.gate_open{g}, ls, 'Color', c, 'LineWidth', 1.5, ...
-            'DisplayName', sprintf('%s 1-%s', e.model, e.gate_names{g}));
-    end
-end
-xlabel('V (mV)'); ylabel('1-x_{\infty}');
+xlabel('V aligned (mV)'); ylabel('P_{open}');
+title('Opening probability');
 grid on; place_legend_safely(gca);
 
 % tau
@@ -847,27 +1195,63 @@ for m = 1:numel(d.entries)
             'DisplayName', sprintf('%s tau_%s', e.model, e.gate_names{g}));
     end
 end
-xlabel('V (mV)'); ylabel('\tau (ms)');
+xlabel('V aligned (mV)'); ylabel('\tau (ms)');
+title('Tau constants');
 grid on; place_legend_safely(gca);
-
-% opening probability
-nexttile; hold on;
-for m = 1:numel(d.entries)
-    e = d.entries(m);
-    c = model_color(e.model, col_can, col_bb, col_bz);
-    ls = popen_styles{mod(m-1, numel(popen_styles))+1};
-    plot(V, e.p_open, ls, 'Color', c, 'LineWidth', 1.8, ...
-        'DisplayName', e.model);
-end
-xlabel('V (mV)'); ylabel('P_{open}');
-grid on; place_legend_safely(gca);
-
-set(f, 'Position', [130 80 1300 760]);
+set(f, 'Position', [130 80 1120 520]);
 
 safe = regexprep([prefix '_' run_tag '_' d.name], '[^A-Za-z0-9_\- ]', '_');
 safe = strrep(safe, ' ', '_');
 exportgraphics(f, fullfile(out_dir, ['paper_compare_channel_' safe '.png']), ...
     'Resolution', 180);
+end
+
+function group_title = channel_group_title(prefix)
+prefix = lower(strtrim(char(prefix)));
+switch prefix
+    case 'similar'
+        group_title = 'Similar channel comparison';
+    case 'different'
+        group_title = 'Moderately different or different channel comparison';
+    otherwise
+        group_title = 'Channel comparison';
+end
+end
+
+function fig_handles = plot_channel_definition_set(V, defs, out_dir, prefix, run_tag, run_label, col_can, col_bb, col_bz)
+fig_handles = gobjects(0,1);
+for k = 1:numel(defs)
+    f = plot_channel_definition(V, defs{k}, out_dir, prefix, run_tag, run_label, col_can, col_bb, col_bz);
+    if ishghandle(f)
+        fig_handles(end+1) = f; %#ok<AGROW>
+    end
+end
+end
+
+function out = append_figure_handles(out, add_handles)
+if isempty(add_handles)
+    return;
+end
+if isempty(out)
+    out = add_handles;
+    return;
+end
+out = [out(:); add_handles(:)];
+end
+
+function f = build_empty_category_figure(run_label, category_label, message_text)
+if nargin < 3 || isempty(message_text)
+    message_text = 'No channel figures were available for this category.';
+end
+f = figure('Name', sprintf('No %s [%s]', category_label, run_label), 'Color', 'w');
+ax = axes('Parent', f, 'Position', [0 0 1 1], 'Visible', 'off');
+text(ax, 0.5, 0.62, run_label, 'HorizontalAlignment', 'center', ...
+    'FontSize', 18, 'FontWeight', 'bold', 'Interpreter', 'none');
+text(ax, 0.5, 0.46, category_label, 'HorizontalAlignment', 'center', ...
+    'FontSize', 16, 'FontWeight', 'bold', 'Interpreter', 'none');
+text(ax, 0.5, 0.28, message_text, 'HorizontalAlignment', 'center', ...
+    'FontSize', 13, 'Interpreter', 'none');
+set(f, 'Position', [220 160 1080 520]);
 end
 
 function place_legend_safely(ax)
@@ -984,13 +1368,21 @@ function [cap_title, cap_body] = supplementary_caption_for_complete_figure(fig_n
 cap_title = '';
 cap_body = '';
 
-tok = regexp(fig_name, 'Figure\s+(\d+)\s*-\s*Complete targeted channel set\s*\[(.*?)\]\s*$', 'tokens', 'once');
+tok = regexp(fig_name, 'Figure\s+(\d+)\s*-\s*Complete targeted channel set(?:\s*\((.*?)\))?\s*\[(.*?)\]\s*$', 'tokens', 'once');
 if isempty(tok)
     return;
 end
 
 fig_num = str2double(tok{1});
-run_label = strtrim(tok{2});
+group_label = '';
+if numel(tok) >= 3
+    group_label = strtrim(tok{2});
+    run_label = strtrim(tok{3});
+elseif numel(tok) >= 2
+    run_label = strtrim(tok{2});
+else
+    return;
+end
 if isnan(fig_num)
     return;
 end
@@ -1002,14 +1394,22 @@ if sup_num < 1
 end
 
 cap_title = sprintf('Supplementary Figure %d Caption', sup_num);
+if isempty(group_label)
+    group_phrase = 'all included channels';
+elseif contains(lower(group_label), 'similar')
+    group_phrase = 'channels classified as similar based on BlueBrain-versus-other opening-probability and tau residuals in matched compartments';
+else
+    group_phrase = 'channels classified as moderately different or different, or channels without matched counterparts across models';
+end
+
 cap_body = sprintf([ ...
-    'Supplementary Figure %d. Complete channel-kinematics comparison for %s.\n' ...
-    'Composite comparison of model-derived CA1 channel kinetics for the selected compartment set. ' ...
-    'A. Lettered panels (A., B., C., ...) each correspond to one channel family and report gate steady-state variables (x_inf), complementary closing variables (1-x_inf), time constants (tau), and channel opening probability (P_open) across membrane voltage. ' ...
-    'Panel headers indicate the channel identity and which models are included (Canakci, BlueBrain, Bezaire, where available).\n' ...
-    'B. Calcium-dependent channels are summarized separately as calcium concentration versus opening probability (cai vs P_open), aligned to the same compartment set. ' ...
-    'Residual-based BlueBrain-versus-other similarity rankings for matched compartments are provided in the associated supplementary residual tables.'], ...
-    sup_num, run_label);
+    'Supplementary Figure %d. Complete channel-kinematics comparison for %s (%s).\n' ...
+    'Composite comparison of model-derived CA1 channel kinetics for the selected compartment set, after aligning all voltage-dependent curves to a shared resting membrane potential of %g mV. ' ...
+    'Lettered panels (A., B., C., ...) each correspond to one channel family and report channel opening probability (P_open) and gate time constants (tau) across membrane voltage. ' ...
+    'Panel headers indicate the channel identity and which models are included (Canakci, BlueBrain, Bezaire, where available). ' ...
+    'Calcium-dependent channels, when present, are summarized separately as intracellular calcium concentration versus opening probability (cai vs P_open). ' ...
+    'This figure emphasizes %s. Residual-based BlueBrain-versus-other similarity rankings for matched compartments are based on both opening-probability and tau residuals and are provided in the associated supplementary residual tables.'], ...
+    sup_num, run_label, group_label, shared_resting_potential_mv(), group_phrase);
 end
 
 function sim_tbl = build_bluebrain_similarity_table(defs)
@@ -1018,6 +1418,11 @@ rows = struct( ...
     'bluebrain_compartment', {}, ...
     'other_model', {}, ...
     'other_compartment', {}, ...
+    'matched_tau_gates', {}, ...
+    'p_open_rmse', {}, ...
+    'p_open_mae', {}, ...
+    'tau_rmse_norm', {}, ...
+    'tau_mae_norm', {}, ...
     'residual_rmse', {}, ...
     'residual_mae', {}, ...
     'similarity', {});
@@ -1041,8 +1446,10 @@ for i = 1:numel(defs)
     for j = 1:numel(other_idx)
         e_other = entries(other_idx(j));
         bb_match = pick_bluebrain_entry(entries, bb_idx, e_other.compartment);
-        [rmse, mae] = residual_metrics(bb_match.p_open, e_other.p_open);
-        if isnan(rmse)
+        [p_rmse, p_mae] = residual_metrics(bb_match.p_open, e_other.p_open);
+        [tau_rmse, tau_mae, tau_gate_count, tau_gate_names] = tau_residual_metrics(bb_match, e_other);
+        [rmse, mae] = combine_residual_metrics(p_rmse, p_mae, tau_rmse, tau_mae);
+        if isnan(rmse) || (~isfinite(p_rmse) && ~isfinite(tau_rmse))
             continue;
         end
 
@@ -1051,9 +1458,18 @@ for i = 1:numel(defs)
         r.bluebrain_compartment = bb_match.compartment;
         r.other_model = e_other.model;
         r.other_compartment = e_other.compartment;
+        if tau_gate_count > 0
+            r.matched_tau_gates = tau_gate_names;
+        else
+            r.matched_tau_gates = '';
+        end
+        r.p_open_rmse = p_rmse;
+        r.p_open_mae = p_mae;
+        r.tau_rmse_norm = tau_rmse;
+        r.tau_mae_norm = tau_mae;
         r.residual_rmse = rmse;
         r.residual_mae = mae;
-        r.similarity = residual_similarity_label(rmse);
+        r.similarity = residual_similarity_label(rmse, p_rmse, tau_rmse);
         rows(end+1,1) = r; %#ok<AGROW>
     end
 end
@@ -1064,7 +1480,7 @@ if isempty(rows)
 end
 
 sim_tbl = struct2table(rows);
-sim_tbl = sortrows(sim_tbl, {'residual_rmse','residual_mae'}, {'ascend','ascend'});
+sim_tbl = sortrows(sim_tbl, {'residual_rmse','p_open_rmse','tau_rmse_norm','residual_mae'}, {'ascend','ascend','ascend','ascend'});
 sim_tbl.rank = (1:height(sim_tbl)).';
 sim_tbl = movevars(sim_tbl, 'rank', 'Before', 'channel');
 end
@@ -1108,10 +1524,133 @@ rmse = sqrt(mean(d.^2));
 mae = mean(abs(d));
 end
 
-function label = residual_similarity_label(rmse)
-if rmse < 0.05
+function [tau_rmse, tau_mae, matched_gate_count, matched_gate_names] = tau_residual_metrics(bb_entry, other_entry)
+[bb_idx, other_idx, gate_labels] = match_gate_sets(bb_entry.gate_names, other_entry.gate_names);
+if isempty(gate_labels)
+    n = min(numel(bb_entry.gate_tau), numel(other_entry.gate_tau));
+    bb_idx = 1:n;
+    other_idx = 1:n;
+    gate_labels = cell(1, n);
+    for k = 1:n
+        gate_labels{k} = sprintf('gate%d', k);
+    end
+end
+
+rmse_vals = [];
+mae_vals = [];
+matched_names = {};
+for k = 1:numel(gate_labels)
+    if bb_idx(k) > numel(bb_entry.gate_tau) || other_idx(k) > numel(other_entry.gate_tau)
+        continue;
+    end
+    [rmse_local, mae_local] = normalized_curve_metrics(bb_entry.gate_tau{bb_idx(k)}, other_entry.gate_tau{other_idx(k)});
+    if ~isfinite(rmse_local)
+        continue;
+    end
+    rmse_vals(end+1) = rmse_local; %#ok<AGROW>
+    mae_vals(end+1) = mae_local; %#ok<AGROW>
+    matched_names{end+1} = gate_labels{k}; %#ok<AGROW>
+end
+
+if isempty(rmse_vals)
+    tau_rmse = nan;
+    tau_mae = nan;
+    matched_gate_count = 0;
+    matched_gate_names = '';
+    return;
+end
+
+tau_rmse = mean(rmse_vals);
+tau_mae = mean(mae_vals);
+matched_gate_count = numel(rmse_vals);
+matched_gate_names = strjoin(matched_names, ',');
+end
+
+function [idx_a, idx_b, gate_labels] = match_gate_sets(gates_a, gates_b)
+idx_a = [];
+idx_b = [];
+gate_labels = {};
+if isempty(gates_a) || isempty(gates_b)
+    return;
+end
+
+used_b = false(1, numel(gates_b));
+for i = 1:numel(gates_a)
+    ga = lower(strtrim(char(gates_a{i})));
+    match_j = [];
+    for j = 1:numel(gates_b)
+        if used_b(j)
+            continue;
+        end
+        gb = lower(strtrim(char(gates_b{j})));
+        if strcmp(ga, gb)
+            match_j = j;
+            break;
+        end
+    end
+    if isempty(match_j)
+        continue;
+    end
+    idx_a(end+1) = i; %#ok<AGROW>
+    idx_b(end+1) = match_j; %#ok<AGROW>
+    gate_labels{end+1} = char(gates_a{i}); %#ok<AGROW>
+    used_b(match_j) = true;
+end
+end
+
+function [rmse, mae] = normalized_curve_metrics(a, b)
+n = min(numel(a), numel(b));
+if n == 0
+    rmse = nan;
+    mae = nan;
+    return;
+end
+
+a = a(1:n);
+b = b(1:n);
+mask = ~(isnan(a) | isnan(b));
+if ~any(mask)
+    rmse = nan;
+    mae = nan;
+    return;
+end
+
+vals = [a(mask), b(mask)];
+scale = max(abs(vals(:)));
+if ~isfinite(scale) || scale <= 0
+    scale = 1;
+end
+
+d = (a(mask) - b(mask)) ./ scale;
+rmse = sqrt(mean(d.^2));
+mae = mean(abs(d));
+end
+
+function [rmse, mae] = combine_residual_metrics(p_rmse, p_mae, tau_rmse, tau_mae)
+rmse_parts = [p_rmse, tau_rmse];
+rmse_parts = rmse_parts(isfinite(rmse_parts));
+mae_parts = [p_mae, tau_mae];
+mae_parts = mae_parts(isfinite(mae_parts));
+if isempty(rmse_parts)
+    rmse = nan;
+else
+    rmse = mean(rmse_parts);
+end
+if isempty(mae_parts)
+    mae = nan;
+else
+    mae = mean(mae_parts);
+end
+end
+
+function label = residual_similarity_label(combined_rmse, p_rmse, tau_rmse)
+if isfinite(p_rmse) && isfinite(tau_rmse) && p_rmse < 0.05 && tau_rmse < 0.10
     label = 'similar';
-elseif rmse < 0.15
+elseif isfinite(p_rmse) && isfinite(tau_rmse) && p_rmse < 0.12 && tau_rmse < 0.22 && combined_rmse < 0.15
+    label = 'moderately different';
+elseif combined_rmse < 0.05
+    label = 'similar';
+elseif combined_rmse < 0.15
     label = 'moderately different';
 else
     label = 'different';
@@ -1131,12 +1670,32 @@ end
 out_csv = fullfile(out_dir, sprintf('bluebrain_channel_similarity_residuals_%s.csv', run_tag));
 writetable(sim_tbl, out_csv);
 
-fprintf('\nBlueBrain vs other models residual ranking (P_open RMSE; lower is more similar) [%s]:\n', run_label);
-disp(sim_tbl(:, {'rank','channel','other_model','other_compartment','residual_rmse','similarity'}));
+fprintf('\nBlueBrain vs other models residual ranking (combined P_open + tau residuals; lower is more similar) [%s]:\n', run_label);
+disp(sim_tbl(:, {'rank','channel','other_model','other_compartment','p_open_rmse','tau_rmse_norm','residual_rmse','similarity'}));
 fprintf('Saved residual table: %s\n', out_csv);
 end
 
-function f_complete = build_complete_figure(V, defs, cai_panel, out_dir, complete_fig_num, run_tag, run_label, col_can, col_bb, col_bz)
+function [diff_defs, sim_defs] = partition_defs_by_similarity(defs, sim_tbl)
+diff_defs = {};
+sim_defs = {};
+for i = 1:numel(defs)
+    d = defs{i};
+    if isempty(sim_tbl) || ~any(strcmp(string(sim_tbl.channel), string(d.name)))
+        diff_defs{end+1} = d; %#ok<AGROW>
+        continue;
+    end
+
+    rows = sim_tbl(strcmp(string(sim_tbl.channel), string(d.name)), :);
+    labels = lower(string(rows.similarity));
+    if ~isempty(labels) && all(labels == "similar")
+        sim_defs{end+1} = d; %#ok<AGROW>
+    else
+        diff_defs{end+1} = d; %#ok<AGROW>
+    end
+end
+end
+
+function f_complete = build_complete_figure(V, defs, cai_panel, out_dir, complete_fig_num, run_tag, run_label, category_label, col_can, col_bb, col_bz, shared_vrest_mv)
 if nargin < 5 || isempty(complete_fig_num)
     complete_fig_num = 18;
 end
@@ -1146,14 +1705,20 @@ end
 if nargin < 7 || isempty(run_label)
     run_label = 'PC soma | PVBC soma';
 end
-if nargin < 8 || isempty(col_can)
+if nargin < 8 || isempty(category_label)
+    category_label = 'all';
+end
+if nargin < 9 || isempty(col_can)
     col_can = [0.00 0.45 0.74];
 end
-if nargin < 9 || isempty(col_bb)
+if nargin < 10 || isempty(col_bb)
     col_bb  = [0.85 0.33 0.10];
 end
-if nargin < 10 || isempty(col_bz)
+if nargin < 11 || isempty(col_bz)
     col_bz  = [0.20 0.60 0.20];
+end
+if nargin < 12 || isempty(shared_vrest_mv)
+    shared_vrest_mv = shared_resting_potential_mv();
 end
 
 has_cai = isstruct(cai_panel) && isfield(cai_panel, 'curves') && ~isempty(cai_panel.curves);
@@ -1165,7 +1730,7 @@ end
 
 final_export_dpi = 900;
 f_complete = figure('Visible', 'on'); clf(f_complete);
-set(f_complete, 'Name', sprintf('Figure %d - Complete targeted channel set [%s]', complete_fig_num, run_label), ...
+set(f_complete, 'Name', sprintf('Figure %d - Complete targeted channel set (%s) [%s]', complete_fig_num, category_label, run_label), ...
     'Color', 'w', ...
     'Units', 'pixels', ...
     'Position', [20 20 5600 3400]);
@@ -1224,8 +1789,7 @@ function draw_channel_panel_in_tile(fig_handle, tile_pos, V, d, panel_title, col
 title_h = 0.11 * tile_pos(4);
 mx = 0.05 * tile_pos(3);
 my = 0.08 * tile_pos(4);
-gx = 0.09 * tile_pos(3);
-gy = 0.18 * tile_pos(4);
+gx = 0.08 * tile_pos(3);
 
 plot_box = [tile_pos(1) + mx, tile_pos(2) + my, tile_pos(3) - 2*mx, tile_pos(4) - title_h - my];
 if plot_box(3) <= 0 || plot_box(4) <= 0
@@ -1233,20 +1797,16 @@ if plot_box(3) <= 0 || plot_box(4) <= 0
 end
 
 w = (plot_box(3) - gx) / 2;
-h = (plot_box(4) - gy) / 2;
+h = plot_box(4);
 if w <= 0 || h <= 0
     return;
 end
 
-p1 = [plot_box(1),          plot_box(2) + h + gy, w, h];
-p2 = [plot_box(1) + w + gx, plot_box(2) + h + gy, w, h];
-p3 = [plot_box(1),          plot_box(2),          w, h];
-p4 = [plot_box(1) + w + gx, plot_box(2),          w, h];
+p1 = [plot_box(1),          plot_box(2), w, h];
+p2 = [plot_box(1) + w + gx, plot_box(2), w, h];
 
 ax1 = axes('Parent', fig_handle, 'Position', p1); hold(ax1, 'on');
 ax2 = axes('Parent', fig_handle, 'Position', p2); hold(ax2, 'on');
-ax3 = axes('Parent', fig_handle, 'Position', p3); hold(ax3, 'on');
-ax4 = axes('Parent', fig_handle, 'Position', p4); hold(ax4, 'on');
 
 gate_styles = {'-','--',':','-.'};
 popen_styles = {'-','--',':','-.'};
@@ -1255,59 +1815,37 @@ for m = 1:numel(d.entries)
     c = model_color(e.model, col_can, col_bb, col_bz);
     model_lbl = compact_model_label(e.model);
 
-    for g = 1:numel(e.gate_open)
-        ls = gate_styles{mod(g-1, numel(gate_styles))+1};
-        plot(ax1, V, e.gate_open{g}, ls, 'Color', c, 'LineWidth', 0.9, ...
-            'DisplayName', sprintf('%s %s', model_lbl, e.gate_names{g}));
-        plot(ax2, V, 1 - e.gate_open{g}, ls, 'Color', c, 'LineWidth', 0.9, ...
-            'DisplayName', sprintf('%s 1-%s', model_lbl, e.gate_names{g}));
-    end
+    ls = popen_styles{mod(m-1, numel(popen_styles))+1};
+    plot(ax1, V, e.p_open, ls, 'Color', c, 'LineWidth', 1.0, ...
+        'DisplayName', model_lbl);
 
     for g = 1:numel(e.gate_tau)
         if all(isnan(e.gate_tau{g}))
             continue;
         end
         ls = gate_styles{mod(g-1, numel(gate_styles))+1};
-        plot(ax3, V, e.gate_tau{g}, ls, 'Color', c, 'LineWidth', 0.9, ...
+        plot(ax2, V, e.gate_tau{g}, ls, 'Color', c, 'LineWidth', 0.9, ...
             'DisplayName', sprintf('%s tau_%s', model_lbl, e.gate_names{g}));
     end
 
-    ls = popen_styles{mod(m-1, numel(popen_styles))+1};
-    plot(ax4, V, e.p_open, ls, 'Color', c, 'LineWidth', 1.0, ...
-        'DisplayName', model_lbl);
 end
 
-ylabel(ax1, 'x_{\infty}', 'FontSize', 7); title(ax1, 'Open', 'FontSize', 8, 'FontWeight', 'bold');
-title(ax2, 'Closed', 'FontSize', 8, 'FontWeight', 'bold');
-xlabel(ax3, 'V (mV)', 'FontSize', 7); ylabel(ax3, '\tau (ms)', 'FontSize', 7); title(ax3, '\tau', 'FontSize', 8, 'FontWeight', 'bold');
-xlabel(ax4, 'V (mV)', 'FontSize', 7); title(ax4, 'P_{open}', 'FontSize', 8, 'FontWeight', 'bold');
-set([ax1 ax2 ax3 ax4], 'FontSize', 7, 'Box', 'on', 'LineWidth', 0.75, ...
+ylabel(ax1, 'P_{open}', 'FontSize', 7); title(ax1, 'Opening probability', 'FontSize', 8, 'FontWeight', 'bold');
+xlabel(ax1, 'V aligned (mV)', 'FontSize', 7);
+ylabel(ax2, '\tau (ms)', 'FontSize', 7); title(ax2, 'Tau constants', 'FontSize', 8, 'FontWeight', 'bold');
+xlabel(ax2, 'V aligned (mV)', 'FontSize', 7);
+set([ax1 ax2], 'FontSize', 7, 'Box', 'on', 'LineWidth', 0.75, ...
     'TickDir', 'out', 'TickLength', [0.012 0.012], 'Layer', 'top');
-
-% Avoid duplicated labels that crowd the 2x2 mini-grid.
-ax1.XTickLabel = [];
-ax2.XTickLabel = [];
-ax2.YTickLabel = [];
-ax4.YTickLabel = [];
-
-grid(ax1, 'on'); grid(ax2, 'on'); grid(ax3, 'on'); grid(ax4, 'on');
+grid(ax1, 'on'); grid(ax2, 'on');
 style_complete_axis(ax1);
 style_complete_axis(ax2);
-style_complete_axis(ax3);
-style_complete_axis(ax4);
 
 pad_axis_limits(ax1);
 pad_axis_limits(ax2);
-pad_axis_limits(ax3);
-pad_axis_limits(ax4);
 set_compact_tick_density(ax1, 4, 4);
 set_compact_tick_density(ax2, 4, 4);
-set_compact_tick_density(ax3, 4, 4);
-set_compact_tick_density(ax4, 4, 4);
 place_compact_legend(ax1);
 place_compact_legend(ax2);
-place_compact_legend(ax3);
-place_compact_legend(ax4);
 
 annotation(fig_handle, 'textbox', ...
     [tile_pos(1) + 0.002, tile_pos(2) + tile_pos(4) - title_h + 0.002, tile_pos(3) - 0.004, title_h - 0.003], ...
@@ -1508,10 +2046,22 @@ txt = char(txt_in);
 txt = strrep(txt, 'BlueBrain', 'BB');
 txt = strrep(txt, 'Canakci', 'Can');
 txt = strrep(txt, 'Bezaire', 'Bez');
+txt = strrep(txt, 'Traub PC', 'TrPC');
+txt = strrep(txt, 'Traub INT', 'TrINT');
 txt = strrep(txt, ' at Vg=', ' @');
 txt = strrep(txt, ' Vg=', ' ');
 txt = strrep(txt, ' mV', 'mV');
 txt = strtrim(regexprep(txt, '\s+', ' '));
+end
+
+function model_names = append_model_name(model_names, name)
+if isempty(model_names)
+    model_names = {char(name)};
+    return;
+end
+if ~any(strcmpi(model_names, name))
+    model_names{end+1} = char(name); %#ok<AGROW>
+end
 end
 
 function exportgraphics_highres(fig_handle, out_path, preferred_dpi)
@@ -1579,7 +2129,7 @@ end
 end
 
 function model_names = figure18_models_from_lines(f)
-known_models = {'Canakci', 'BlueBrain', 'Bezaire'};
+known_models = {'Canakci', 'BlueBrain', 'Bezaire', 'Traub PC', 'Traub INT'};
 model_names = {};
 lines = findall(f, 'Type', 'Line');
 for i = 1:numel(lines)
@@ -1633,6 +2183,10 @@ switch lower(name)
         c = col_bb;
     case 'bezaire'
         c = col_bz;
+    case 'traub pc'
+        c = [0.49 0.18 0.56];
+    case 'traub int'
+        c = [0.30 0.30 0.30];
     otherwise
         c = [0 0 0];
 end
@@ -1646,6 +2200,10 @@ switch lower(strtrim(char(name)))
         lbl = 'BB';
     case 'bezaire'
         lbl = 'Bez';
+    case 'traub pc'
+        lbl = 'TrPC';
+    case 'traub int'
+        lbl = 'TrINT';
     otherwise
         lbl = strtrim(char(name));
 end
